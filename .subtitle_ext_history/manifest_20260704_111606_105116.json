@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-07-04T11:16:06.105116",
+  "folder": "/home/skaska/Subtitle",
+  "renamed": [
+    {
+      "old": "/home/skaska/Subtitle/processing/RBD-713",
+      "new": "/home/skaska/Subtitle/processing/RBD-713.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/NSODN-013",
+      "new": "/home/skaska/Subtitle/processing/NSODN-013.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/FNS-087",
+      "new": "/home/skaska/Subtitle/processing/find_videos/FNS-087.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/MIAA-707",
+      "new": "/home/skaska/Subtitle/processing/find_videos/MIAA-707.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/NTRD-128",
+      "new": "/home/skaska/Subtitle/processing/find_videos/NTRD-128.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/JUL-945",
+      "new": "/home/skaska/Subtitle/processing/find_videos/JUL-945.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/NSFS-445",
+      "new": "/home/skaska/Subtitle/processing/find_videos/NSFS-445.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/ALDN-550",
+      "new": "/home/skaska/Subtitle/processing/find_videos/ALDN-550.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/find_videos/NACR-574",
+      "new": "/home/skaska/Subtitle/processing/find_videos/NACR-574.vtt"
+    }
+  ],
+  "deleted": []
+}
