@@ -12,9 +12,11 @@ Contoh penggunaan:
 """
 
 import argparse
+import json
 import os
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -156,16 +158,17 @@ def handle_duplicates(duplikat_items, folder: Path, action: str, duplicate_folde
     - 'trash' : pindahkan ke trash sistem (butuh library send2trash).
     - 'move'  : pindahkan ke satu folder khusus di dalam 'folder'.
 
-    Mengembalikan (jumlah_berhasil, jumlah_gagal).
+    Mengembalikan (jumlah_berhasil, jumlah_gagal, daftar_record_aksi).
     """
     if action == "skip" or not duplikat_items:
-        return 0, 0
+        return 0, 0, []
 
     def fmt(p: Path) -> str:
         return truncate_middle(rel_path(p, folder), max_len)
 
     berhasil = 0
     gagal = 0
+    records = []
 
     if action == "trash":
         try:
@@ -178,7 +181,7 @@ def handle_duplicates(duplikat_items, folder: Path, action: str, duplicate_folde
                 "File duplikat dibiarkan di tempat (tidak diproses).",
                 file=sys.stderr
             )
-            return 0, len(duplikat_items)
+            return 0, len(duplikat_items), []
 
         print("\n=== Memindahkan file duplikat ke trash ===")
         for old_path, _new_path, _status in duplikat_items:
@@ -190,9 +193,23 @@ def handle_duplicates(duplikat_items, folder: Path, action: str, duplicate_folde
                 send2trash(str(old_path))
                 print(f"  [TRASH] {fmt(old_path)}")
                 berhasil += 1
+                records.append({
+                    "type": "duplicate_trash",
+                    "from": str(old_path),
+                    "to": None,
+                    "status": "success",
+                    "error": None,
+                })
             except Exception as e:
                 print(f"  [GAGAL] {fmt(old_path)}: {e}", file=sys.stderr)
                 gagal += 1
+                records.append({
+                    "type": "duplicate_trash",
+                    "from": str(old_path),
+                    "to": None,
+                    "status": "failed",
+                    "error": str(e),
+                })
 
     elif action == "move":
         duplicate_dir = folder / duplicate_folder_name
@@ -212,11 +229,55 @@ def handle_duplicates(duplikat_items, folder: Path, action: str, duplicate_folde
                 shutil.move(str(old_path), str(target))
                 print(f"  [PINDAH] {fmt(old_path)} -> {target_display}")
                 berhasil += 1
+                records.append({
+                    "type": "duplicate_move",
+                    "from": str(old_path),
+                    "to": str(target),
+                    "status": "success",
+                    "error": None,
+                })
             except OSError as e:
                 print(f"  [GAGAL] {fmt(old_path)}: {e}", file=sys.stderr)
                 gagal += 1
+                records.append({
+                    "type": "duplicate_move",
+                    "from": str(old_path),
+                    "to": str(target),
+                    "status": "failed",
+                    "error": str(e),
+                })
 
-    return berhasil, gagal
+    return berhasil, gagal, records
+
+
+def write_log(folder: Path, args, actions: list, summary: dict) -> Path:
+    """
+    Menulis manifest/log hasil eksekusi ke folder/.history/ dalam format JSON,
+    satu file per eksekusi dengan nama berdasarkan timestamp.
+    """
+    history_dir = folder / ".history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now()
+    log_path = history_dir / f"batch_rename_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+
+    data = {
+        "timestamp": timestamp.isoformat(timespec="seconds"),
+        "command": {
+            "folder": str(folder),
+            "extension": args.extension.lstrip(".").strip(),
+            "recursive": args.recursive,
+            "duplicate_action": args.duplicate_action,
+            "duplicate_folder": args.duplicate_folder,
+        },
+        "actions": actions,
+        "summary": summary,
+    }
+
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    return log_path
 
 
 def main():
@@ -329,15 +390,30 @@ def main():
             return
 
     total_renamed = 0
+    rename_records = []
     for old_path, new_path, _ in to_rename:
         try:
             old_path.rename(new_path)
             print(f"[RENAME] {truncate_middle(rel_path(old_path, folder), max_len)} -> {truncate_middle(rel_path(new_path, folder), max_len)}")
             total_renamed += 1
+            rename_records.append({
+                "type": "rename",
+                "from": str(old_path),
+                "to": str(new_path),
+                "status": "success",
+                "error": None,
+            })
         except OSError as e:
             print(f"[GAGAL] {old_path}: {e}", file=sys.stderr)
+            rename_records.append({
+                "type": "rename",
+                "from": str(old_path),
+                "to": str(new_path),
+                "status": "failed",
+                "error": str(e),
+            })
 
-    dup_berhasil, dup_gagal = handle_duplicates(
+    dup_berhasil, dup_gagal, dup_records = handle_duplicates(
         duplikat_items, folder, args.duplicate_action, args.duplicate_folder, dry_run=False, max_len=max_len
     )
 
@@ -351,6 +427,18 @@ def main():
         print(f"Total duplikat diproses   : {dup_berhasil}")
         if dup_gagal:
             print(f"Total duplikat gagal      : {dup_gagal}")
+
+    all_actions = rename_records + dup_records
+    if all_actions:
+        summary = {
+            "total_scanned": len(files),
+            "total_renamed": total_renamed,
+            "total_skipped_has_ext": total_skip_has_ext,
+            "total_duplicate_processed": dup_berhasil,
+            "total_duplicate_failed": dup_gagal,
+        }
+        log_path = write_log(folder, args, all_actions, summary)
+        print(f"\nManifest/log disimpan di: {log_path}")
 
 
 if __name__ == "__main__":
