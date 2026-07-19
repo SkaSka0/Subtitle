@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-07-11T08:50:33.690376",
+  "folder": "/home/skaska/Subtitle",
+  "renamed": [
+    {
+      "old": "/home/skaska/Subtitle/processing/MIDA-712",
+      "new": "/home/skaska/Subtitle/processing/MIDA-712.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/MIDA-686",
+      "new": "/home/skaska/Subtitle/processing/MIDA-686.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/MIFD-723",
+      "new": "/home/skaska/Subtitle/processing/MIFD-723.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/MIDA-683",
+      "new": "/home/skaska/Subtitle/processing/MIDA-683.vtt"
+    },
+    {
+      "old": "/home/skaska/Subtitle/processing/MNGS-061",
+      "new": "/home/skaska/Subtitle/processing/MNGS-061.vtt"
+    }
+  ],
+  "deleted": []
+}
