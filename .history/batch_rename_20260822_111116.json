@@ -1,0 +1,96 @@
+{
+  "timestamp": "2026-08-22T11:11:16",
+  "command": {
+    "folder": "/home/skaska/Subtitle",
+    "extension": "vtt",
+    "recursive": true,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/SDNM-558",
+      "to": "/home/skaska/Subtitle/processing/SDNM-558.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/ACHJ-042",
+      "to": "/home/skaska/Subtitle/processing/ACHJ-042.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/TOEN-07",
+      "to": "/home/skaska/Subtitle/processing/TOEN-07.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/JHEM-044",
+      "to": "/home/skaska/Subtitle/processing/JHEM-044.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDV-611",
+      "to": "/home/skaska/Subtitle/processing/MIDV-611.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDV-185",
+      "to": "/home/skaska/Subtitle/processing/MIDV-185.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDV-461",
+      "to": "/home/skaska/Subtitle/processing/MIDV-461.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDV-402",
+      "to": "/home/skaska/Subtitle/processing/MIDV-402.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/CHUC-181",
+      "to": "/home/skaska/Subtitle/processing/CHUC-181.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/DLDSS-379",
+      "to": "/home/skaska/Subtitle/processing/DLDSS-379.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/NGOD-222",
+      "to": "/home/skaska/Subtitle/processing/NGOD-222.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 432,
+    "total_renamed": 11,
+    "total_skipped_has_ext": 421,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}
