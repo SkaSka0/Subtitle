@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-08-22T10:01:29",
+  "command": {
+    "folder": "/home/skaska/Subtitle",
+    "extension": "vtt",
+    "recursive": true,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDA-607",
+      "to": "/home/skaska/Subtitle/processing/MIDA-607.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDA-592",
+      "to": "/home/skaska/Subtitle/processing/MIDA-592.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-608",
+      "to": "/home/skaska/Subtitle/processing/START-608.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-567",
+      "to": "/home/skaska/Subtitle/processing/START-567.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/STARS-852",
+      "to": "/home/skaska/Subtitle/processing/STARS-852.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/KSBJ-438",
+      "to": "/home/skaska/Subtitle/processing/KSBJ-438.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/VOD-060",
+      "to": "/home/skaska/Subtitle/processing/VOD-060.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/HZGD-211",
+      "to": "/home/skaska/Subtitle/processing/HZGD-211.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/VENX-378",
+      "to": "/home/skaska/Subtitle/processing/VENX-378.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/GVH-861",
+      "to": "/home/skaska/Subtitle/processing/GVH-861.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/FNS-234",
+      "to": "/home/skaska/Subtitle/processing/FNS-234.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/NGOD-287",
+      "to": "/home/skaska/Subtitle/processing/NGOD-287.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/CJOD-350",
+      "to": "/home/skaska/Subtitle/processing/CJOD-350.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/HEZ-888",
+      "to": "/home/skaska/Subtitle/processing/HEZ-888.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/AKDL-369",
+      "to": "/home/skaska/Subtitle/processing/AKDL-369.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIDV-432",
+      "to": "/home/skaska/Subtitle/processing/MIDV-432.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/GVG-067",
+      "to": "/home/skaska/Subtitle/processing/GVG-067.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-473",
+      "to": "/home/skaska/Subtitle/processing/START-473.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/TNIK-028",
+      "to": "/home/skaska/Subtitle/processing/TNIK-028.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/ZUKO-140",
+      "to": "/home/skaska/Subtitle/processing/ZUKO-140.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/DLDSS-440",
+      "to": "/home/skaska/Subtitle/processing/DLDSS-440.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/SDDE-711",
+      "to": "/home/skaska/Subtitle/processing/SDDE-711.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-596",
+      "to": "/home/skaska/Subtitle/processing/START-596.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-405",
+      "to": "/home/skaska/Subtitle/processing/START-405.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/SONE-620",
+      "to": "/home/skaska/Subtitle/processing/SONE-620.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/FNS-228",
+      "to": "/home/skaska/Subtitle/processing/FNS-228.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 421,
+    "total_renamed": 26,
+    "total_skipped_has_ext": 395,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}
