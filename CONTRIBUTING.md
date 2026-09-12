@@ -55,3 +55,25 @@ Prinsip yang sama berlaku untuk dokumentasi seperti untuk kode:
 - Perubahan struktur dokumentasi (menambah/memecah file) tetap harus
   mempertahankan seluruh isi yang sudah ada — hanya dipindahkan ke lokasi
   yang lebih sesuai, dilengkapi dengan tautan silang antar dokumen.
+
+## Prinsip Desain Fungsi
+
+Setiap fungsi baru sebaiknya melakukan **satu tanggung jawab saja**.
+Tanda-tanda sebuah fungsi sudah melakukan lebih dari satu hal:
+- Nama fungsi butuh kata "dan" untuk dijelaskan (mis. "kirim request DAN
+  parse response DAN validasi title").
+- Docstring-nya berisi lebih dari satu kalimat yang menjelaskan hal
+  yang tidak saling terkait langsung.
+- Fungsi punya banyak lapis percabangan (nested if/try) yang menangani
+  beberapa jenis masalah berbeda dalam satu badan fungsi.
+
+Jika ini terjadi, pisahkan bagian yang berbeda tanggung jawabnya ke
+fungsi terpisah (helper), dengan nama yang menjelaskan persis satu hal
+yang dilakukan. Fungsi orkestrasi/pemanggil boleh tetap ada untuk
+menyusun alur, tapi badannya sebaiknya berupa pemanggilan
+helper-helper tersebut, bukan implementasi detailnya secara langsung.
+
+**Catatan:** aturan ini berlaku untuk fungsi/kode baru. Untuk kode
+existing yang sudah melanggar prinsip ini, jangan langsung di-refactor
+tanpa konfirmasi — tetap ikuti aturan "perubahan sekecil mungkin" dan
+"jangan refactor besar jika perubahan kecil sudah cukup" di atas.
