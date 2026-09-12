@@ -2,7 +2,7 @@
 
 import argparse
 import html
-import json
+import sqlite3
 import os
 import sys
 import time
@@ -22,15 +22,7 @@ MAX_RETRIES = 3
 # reaktif lewat retry-after-429).
 MIN_SECONDS_PER_REQUEST = 6.5
 
-# Simpan checkpoint setiap N hasil sukses, bukan tiap 1 file,
-# untuk mengurangi I/O berulang menulis seluruh JSON.
-SAVE_EVERY = 5
-
-SOURCES = [
-    "https://123av.com/en/v/{code}",
-    "https://missav.ws/dm2/en/{code}",
-    "https://podjav.tv/movies/{code}/",
-]
+SOURCES_ENV_VAR = "FIRECRAWL_SOURCES"
 
 NOT_FOUND_KEYWORDS = [
     "404",
@@ -90,24 +82,7 @@ def get_file_metadata(file: Path) -> dict:
         "file_modified_at": format_file_timestamp(stat.st_mtime),
         "file_accessed_at": format_file_timestamp(stat.st_atime),
         "file_size": stat.st_size,
-        # Dipakai hanya untuk sorting selama program berjalan.
-        # Field ini tidak ditulis ke result.json.
-        "_file_created_epoch": created_timestamp,
     }
-
-
-def parse_created_at_for_sort(value: object) -> float:
-    """
-    Mengubah file_created_at dari JSON lama menjadi timestamp untuk sorting.
-    Jika format tidak valid, dikembalikan infinity agar diletakkan di akhir.
-    """
-    if not isinstance(value, str) or not value:
-        return float("inf")
-
-    try:
-        return datetime.strptime(value, "%d-%m-%Y %H:%M:%S").timestamp()
-    except ValueError:
-        return float("inf")
 
 
 class RateLimiter:
@@ -140,26 +115,50 @@ def extract_markdown_title(markdown: str) -> str:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Mengambil nama file subtitle .vtt dari sebuah folder "
-        "dan melakukan scraping title menggunakan Firecrawl."
+        description="Mengambil nama file subtitle .vtt dan melakukan scraping title "
+        "menggunakan Firecrawl, dengan SQLite sebagai checkpoint."
     )
     parser.add_argument(
-        "directory", type=Path,
+        "directory", nargs="?", type=Path,
         help="Folder yang berisi file-file subtitle .vtt yang akan diproses",
+    )
+    parser.add_argument(
+        "-d", "--directory", dest="directory_option", type=Path,
+        help="Folder target yang berisi file-file subtitle .vtt",
     )
     parser.add_argument(
         "-a", "--all", action="store_true",
         help="Sertakan file tersembunyi",
     )
     parser.add_argument(
-        "-o", "--output", type=Path, default=Path("results.json"),
-        help="File JSON output/checkpoint (default: results.json)",
+        "--db", type=Path, default=Path("subtitles.db"),
+        help="File SQLite checkpoint (default: subtitles.db)",
     )
     parser.add_argument(
         "-r", "--reverse", action="store_true",
         help="Proses file dalam urutan terbalik",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "-o", "--output", type=Path,
+        help="[Legacy] File JSON checkpoint lama; tidak digunakan lagi sebagai checkpoint.",
+    )
+    args = parser.parse_args()
+
+    if args.directory is not None and args.directory_option is not None:
+        parser.error("Tentukan directory sekali saja, bukan positional dan --directory sekaligus.")
+
+    args.directory = args.directory_option or args.directory
+    if args.directory is None:
+        parser.error("directory wajib diisi (contoh: python subtitle_metadata.py -d ~/subtitle)")
+
+    if args.output is not None:
+        log(
+            "Option -o/--output sudah tidak digunakan sebagai checkpoint. "
+            "SQLite tetap digunakan sebagai storage utama.",
+            "WARNING",
+        )
+
+    return args
 
 
 def validate_directory(directory: Path) -> None:
@@ -186,8 +185,8 @@ def get_files(directory: Path, include_hidden: bool = False) -> list[Path]:
     except OSError as exc:
         raise OSError(f"Gagal membaca folder '{directory}': {exc}") from exc
 
-    # Urutan awal tetap berdasarkan nama file. Urutan result.json ditentukan
-    # secara terpisah berdasarkan file_created_at.
+    # Urutan awal tetap berdasarkan nama file. Sorting database dilakukan
+    # terpisah jika dibutuhkan oleh query/reporting.
     return sorted(files, key=lambda file: file.name.lower())
 
 
@@ -199,8 +198,13 @@ def get_file_code(file: Path) -> str:
     return file.stem
 
 
-def scrape_title(code: str, api_key: str, rate_limiter: RateLimiter) -> str:
-    """Mencoba tiap source di SOURCES satu per satu lewat Firecrawl.
+def scrape_title(
+    code: str,
+    api_key: str,
+    sources: list[str],
+    rate_limiter: RateLimiter,
+) -> str:
+    """Mencoba tiap source satu per satu lewat Firecrawl.
     Retry hingga MAX_RETRIES pada HTTP 429, mengikuti Retry-After
     jika tersedia, jika tidak pakai exponential backoff."""
 
@@ -210,7 +214,7 @@ def scrape_title(code: str, api_key: str, rate_limiter: RateLimiter) -> str:
         "Content-Type": "application/json",
     }
 
-    for source_template in SOURCES:
+    for source_template in sources:
         target_url = source_template.format(code=lower_code)
         retry_count = 0
 
@@ -363,161 +367,110 @@ def scrape_title(code: str, api_key: str, rate_limiter: RateLimiter) -> str:
     return ""
 
 
-def load_results(output_file: Path) -> list[dict]:
-    """Membaca checkpoint dari file JSON. Mengembalikan list kosong jika belum ada."""
-    if not output_file.exists():
-        log(f"Checkpoint belum ada: {output_file}")
-        return []
+def initialize_database(connection: sqlite3.Connection) -> None:
+    """Membuat schema SQLite jika belum tersedia tanpa mengubah data existing."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS subtitles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama_file TEXT NOT NULL,
+            relative_path TEXT,
+            title TEXT,
+            downloaded INTEGER NOT NULL DEFAULT 0,
+            file_created_at TEXT,
+            file_modified_at TEXT,
+            file_accessed_at TEXT,
+            file_size INTEGER,
+            scraped_at TEXT
+        )
+        """
+    )
+    connection.commit()
 
+
+def open_database(database_file: Path) -> sqlite3.Connection:
+    """Membuka SQLite dan memastikan schema tersedia."""
     try:
-        with output_file.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-
-        if not isinstance(data, list):
-            raise ValueError(
-                f"Format checkpoint tidak valid: {output_file}. "
-                "Format harus berupa JSON array."
-            )
-
-        results: list[dict] = []
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-
-            nama_file = item.get("nama_file")
-            title = item.get("title")
-            if not isinstance(nama_file, str) or not isinstance(title, str):
-                continue
-            if not nama_file or not title:
-                continue
-
-            downloaded = item.get("downloaded", False)
-            if not isinstance(downloaded, bool):
-                downloaded = False
-
-            timestamp = item.get("timestamp", "")
-            if not isinstance(timestamp, str):
-                timestamp = ""
-
-            file_created_at = item.get("file_created_at", "")
-            if not isinstance(file_created_at, str):
-                file_created_at = ""
-
-            file_modified_at = item.get("file_modified_at", "")
-            if not isinstance(file_modified_at, str):
-                file_modified_at = ""
-
-            file_accessed_at = item.get("file_accessed_at", "")
-            if not isinstance(file_accessed_at, str):
-                file_accessed_at = ""
-
-            file_size = item.get("file_size", 0)
-            if not isinstance(file_size, int) or isinstance(file_size, bool):
-                file_size = 0
-
-            results.append({
-                "nama_file": nama_file,
-                "title": title,
-                "downloaded": downloaded,
-                "timestamp": timestamp,
-                "file_created_at": file_created_at,
-                "file_modified_at": file_modified_at,
-                "file_accessed_at": file_accessed_at,
-                "file_size": file_size,
-            })
-
-        # result.json selalu dirapikan berdasarkan created_at terlama -> terbaru.
-        results.sort(key=result_sort_key)
-        log(f"Checkpoint ditemukan: {len(results)} hasil sudah tersimpan.")
-        return results
-
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"File checkpoint bukan JSON yang valid: {output_file}") from exc
-    except PermissionError as exc:
-        raise PermissionError(f"Tidak memiliki izin membaca file: {output_file}") from exc
-    except OSError as exc:
-        raise OSError(f"Gagal membaca checkpoint '{output_file}': {exc}") from exc
+        database_file.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(database_file)
+        connection.row_factory = sqlite3.Row
+        initialize_database(connection)
+        return connection
+    except sqlite3.Error as exc:
+        raise OSError(f"Gagal membuka database '{database_file}': {exc}") from exc
 
 
-def result_sort_key(item: dict) -> tuple:
-    """
-    Sorting utama: file_created_at paling lama -> paling baru.
-
-    Untuk data baru, _file_created_epoch mempertahankan timestamp filesystem
-    asli selama program berjalan. Untuk data yang dimuat dari JSON lama,
-    nilai file_created_at diparse kembali sampai resolusi detik.
-    Nama file menjadi tie-breaker agar hasil konsisten.
-    """
-    epoch = item.get("_file_created_epoch")
-    if not isinstance(epoch, (int, float)) or isinstance(epoch, bool):
-        epoch = parse_created_at_for_sort(item.get("file_created_at"))
-
-    return (epoch, str(item.get("nama_file", "")).lower())
+def is_processed(connection: sqlite3.Connection, nama_file: str) -> bool:
+    """Mengecek checkpoint SQLite sebelum Firecrawl."""
+    row = connection.execute(
+        "SELECT 1 FROM subtitles WHERE nama_file = ? LIMIT 1",
+        (nama_file,),
+    ).fetchone()
+    return row is not None
 
 
-def save_results(results: list[dict], output_file: Path) -> None:
-    """Menyimpan hasil scraping ke JSON secara atomic dan terurut
-    berdasarkan file_created_at dari terlama ke terbaru."""
-
-    if not results:
-        return
-
+def insert_result(
+    connection: sqlite3.Connection,
+    nama_file: str,
+    title: str,
+    file_metadata: dict,
+) -> None:
+    """Menyimpan hasil scraping yang sukses ke SQLite."""
     try:
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+        connection.execute(
+            """
+            INSERT INTO subtitles (
+                nama_file, relative_path, title, downloaded,
+                file_created_at, file_modified_at, file_accessed_at,
+                file_size, scraped_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nama_file,
+                None,
+                title,
+                0,
+                file_metadata["file_created_at"],
+                file_metadata["file_modified_at"],
+                file_metadata["file_accessed_at"],
+                file_metadata["file_size"],
+                current_timestamp(),
+            ),
+        )
+        connection.commit()
+    except sqlite3.Error as exc:
+        connection.rollback()
+        raise OSError(f"Gagal menyimpan '{nama_file}' ke SQLite: {exc}") from exc
 
-        sorted_results = sorted(results, key=result_sort_key)
 
-        # Jangan tulis field internal _file_created_epoch ke result.json.
-        json_results = []
-        for item in sorted_results:
-            clean_item = {
-                key: value
-                for key, value in item.items()
-                if not key.startswith("_")
-            }
-            json_results.append(clean_item)
-
-        temporary_file = output_file.with_suffix(output_file.suffix + ".tmp")
-        with temporary_file.open("w", encoding="utf-8") as file:
-            json.dump(json_results, file, ensure_ascii=False, indent=4)
-            file.write("\n")
-            file.flush()
-            os.fsync(file.fileno())
-
-        temporary_file.replace(output_file)
-
-    except PermissionError as exc:
-        raise PermissionError(
-            f"Tidak memiliki izin menulis file: {output_file}"
-        ) from exc
-    except OSError as exc:
-        raise OSError(
-            f"Gagal menyimpan JSON '{output_file}': {exc}"
-        ) from exc
+def get_database_count(connection: sqlite3.Connection) -> int:
+    """Mengambil jumlah record subtitle dari database."""
+    row = connection.execute("SELECT COUNT(*) AS count FROM subtitles").fetchone()
+    return int(row["count"])
 
 
 def process_files(
     files: list[Path],
-    output_file: Path,
-    results: list[dict],
+    connection: sqlite3.Connection,
     api_key: str,
     rate_limiter: RateLimiter,
-) -> list[dict]:
-    """Memproses file satu per satu, skip yang sudah ada di checkpoint.
-    Metadata filesystem diambil dari setiap file .vtt.
-    Checkpoint disimpan tiap SAVE_EVERY hasil sukses baru (dan di akhir)."""
+    sources: list[str],
+) -> tuple[int, int, int]:
+    """Memproses file satu per satu dengan SQLite sebagai checkpoint utama.
+
+    Database selalu diperiksa sebelum Firecrawl. Record baru langsung di-commit
+    setelah scraping sukses sehingga hasil yang sudah tersimpan tetap aman jika
+    proses berhenti di tengah jalan.
+    """
 
     total = len(files)
-    processed_files = {item["nama_file"] for item in results}
-
     skipped_count = success_count = failed_count = 0
-    unsaved_since_checkpoint = 0
 
     for index, file in enumerate(files, start=1):
         code = get_file_code(file)
 
-        if code in processed_files:
-            log(f"[{index}/{total}] {code} sudah ada di checkpoint. SKIP.")
+        if is_processed(connection, code):
+            log(f"[{index}/{total}] {code} sudah ada di SQLite. SKIP.")
             skipped_count += 1
             continue
 
@@ -533,7 +486,7 @@ def process_files(
             )
             continue
 
-        title = scrape_title(code, api_key, rate_limiter)
+        title = scrape_title(code, api_key, sources, rate_limiter)
 
         print()
         log(f"nama file        : {code}")
@@ -545,45 +498,26 @@ def process_files(
         print()
 
         if title:
-            results.append({
-                "nama_file": code,
-                "title": title,
-                "downloaded": False,
-                "timestamp": current_timestamp(),
-                "file_created_at": file_metadata["file_created_at"],
-                "file_modified_at": file_metadata["file_modified_at"],
-                "file_accessed_at": file_metadata["file_accessed_at"],
-                "file_size": file_metadata["file_size"],
-                "_file_created_epoch": file_metadata["_file_created_epoch"],
-            })
+            try:
+                insert_result(connection, code, title, file_metadata)
+            except OSError as exc:
+                failed_count += 1
+                log(str(exc), "ERROR")
+                continue
 
-            processed_files.add(code)
             success_count += 1
-            unsaved_since_checkpoint += 1
-
-            if unsaved_since_checkpoint >= SAVE_EVERY:
-                save_results(results, output_file)
-                log(
-                    f"Checkpoint diperbarui. {len(results)} hasil tersimpan "
-                    f"ke {output_file}",
-                    "SUCCESS",
-                )
-                unsaved_since_checkpoint = 0
+            log(
+                f"Checkpoint SQLite diperbarui. {get_database_count(connection)} "
+                "record tersimpan.",
+                "SUCCESS",
+            )
         else:
             failed_count += 1
             log(
                 f"'{code}' tidak mendapatkan title. "
-                "Tidak dimasukkan ke checkpoint.",
+                "Tidak dimasukkan ke SQLite.",
                 "ERROR",
             )
-
-    if unsaved_since_checkpoint > 0:
-        save_results(results, output_file)
-        log(
-            f"Checkpoint akhir disimpan. {len(results)} hasil tersimpan "
-            f"ke {output_file}",
-            "SUCCESS",
-        )
 
     print()
     log("SUMMARY")
@@ -591,9 +525,9 @@ def process_files(
     log(f"Sudah diproses   : {skipped_count}")
     log(f"Berhasil         : {success_count}")
     log(f"Gagal            : {failed_count}")
-    log(f"Total checkpoint : {len(results)}")
+    log(f"Total checkpoint : {get_database_count(connection)}")
 
-    return results
+    return skipped_count, success_count, failed_count
 
 
 def main() -> int:
@@ -616,10 +550,15 @@ def main() -> int:
             )
             return 1
 
-        if not SOURCES:
+        sources = [
+            source.strip()
+            for source in os.getenv(SOURCES_ENV_VAR, "").split(",")
+            if source.strip()
+        ]
+        if not sources:
             log(
-                "SOURCES kosong. Tidak ada sumber untuk di-scrape. "
-                "Isi daftar SOURCES terlebih dahulu.",
+                f"Environment variable '{SOURCES_ENV_VAR}' tidak ditemukan atau kosong. "
+                f"Isi dengan daftar source yang dipisahkan koma.",
                 "ERROR",
             )
             return 1
@@ -636,45 +575,34 @@ def main() -> int:
 
         log(f"Ditemukan {len(files)} file subtitle .vtt yang akan diperiksa.")
 
-        results = load_results(args.output)
-        if results:
-            checkpoint_names = {item["nama_file"] for item in results}
-            already_processed = sum(
-                1 for file in files if get_file_code(file) in checkpoint_names
-            )
-            log(
-                f"Resume aktif: {already_processed} file sudah ada di checkpoint."
-            )
-            log(
-                f"File yang perlu diproses: {len(files) - already_processed}"
-            )
-        else:
-            log("Tidak ada checkpoint. Memulai dari awal.")
+        connection = open_database(args.db)
+        try:
+            database_count = get_database_count(connection)
+            log(f"SQLite checkpoint aktif: {args.db}")
+            log(f"Record yang sudah tersimpan: {database_count}")
 
-        rate_limiter = RateLimiter(MIN_SECONDS_PER_REQUEST)
-        results = process_files(
-            files, args.output, results, api_key, rate_limiter
+            existing_count = sum(
+                1 for file in files if is_processed(connection, get_file_code(file))
+            )
+            log(f"File target yang sudah ada di SQLite: {existing_count}")
+            log(f"File yang perlu diperiksa: {len(files) - existing_count}")
+
+            rate_limiter = RateLimiter(MIN_SECONDS_PER_REQUEST)
+            process_files(files, connection, api_key, rate_limiter, sources)
+            final_count = get_database_count(connection)
+        finally:
+            connection.close()
+
+        log(
+            f"Semua proses selesai. Total {final_count} record tersimpan di {args.db}",
+            "SUCCESS",
         )
-
-        if results:
-            log(
-                f"Semua proses selesai. Total {len(results)} hasil tersimpan "
-                f"di {args.output}",
-                "SUCCESS",
-            )
-        else:
-            log(
-                "Semua proses selesai, tetapi tidak ada title yang berhasil "
-                "ditemukan. File JSON tidak dibuat.",
-                "ERROR",
-            )
-
         return 0
 
     except KeyboardInterrupt:
         print()
         log("Proses dibatalkan oleh pengguna.", "ERROR")
-        log("Checkpoint terakhir tetap tersimpan.", "INFO")
+        log("Record yang sudah di-commit ke SQLite tetap tersimpan.", "INFO")
         return 130
 
     except (
