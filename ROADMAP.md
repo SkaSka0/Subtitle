@@ -27,11 +27,6 @@
 - [x] `uv` digunakan untuk virtual environment.
 - [x] `.venv/` digunakan sebagai virtual environment directory.
 
-> **Catatan:** file `.env.example` dan `.gitignore` sudah tersedia di repo,
-> tetapi checklist ini belum ditandai selesai secara resmi di ROADMAP versi
-> sebelumnya. Perlu diverifikasi dan ditandai `[x]` pada update berikutnya
-> jika memang sudah final.
-
 ### P1 — Migrasi Database
 
 - [x] Tentukan schema SQLite final.
