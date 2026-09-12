@@ -1,636 +1,95 @@
 # ROADMAP — Subtitle Metadata & Scraper
 
-> Dokumen ini adalah sumber acuan utama untuk pengembangan project.
-> Digunakan oleh developer maupun LLM/AI yang diminta memodifikasi kode project.
-> Sebelum mengubah kode, baca dokumen ini dan pertahankan data serta behavior yang sudah stabil.
+> Dokumen prioritas pengembangan, status terkini, testing minimum, dan
+> definition of done. Untuk overview & cara pakai, lihat
+> [`README.md`](./README.md). Untuk desain teknis (schema, alur, aturan
+> Firecrawl/sorting/metadata), lihat [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+> Untuk aturan wajib/dilarang sebelum mengubah kode, lihat
+> [`CONTRIBUTING.md`](./CONTRIBUTING.md). Untuk riwayat perubahan, lihat
+> [`CHANGELOG.md`](./CHANGELOG.md).
+>
+> Sebelum mengubah kode, baca dokumen ini beserta `ARCHITECTURE.md` dan
+> `CONTRIBUTING.md`, lalu pertahankan data serta behavior yang sudah stabil.
 
 ---
 
-## 1. Tujuan Project
+## 1. Prioritas Roadmap
 
-Tool Python CLI untuk memproses file subtitle `.vtt`, mengambil metadata/judul
-melalui Firecrawl dari beberapa source, menyimpan metadata filesystem dan hasil
-scraping, serta melewati subtitle yang sudah pernah diproses.
+### P0 — Stabilitas & Keamanan
 
-Arah pengembangan utama:
-- mengganti JSON checkpoint dengan SQLite;
-- mendukung recursive directory processing;
-- menjaga agar subtitle existing tidak di-scrape ulang;
-- tetap sederhana, mudah dipelihara, dan cocok untuk Linux/Arch Linux;
-- menggunakan `uv` untuk mengelola virtual environment dan dependency Python.
+- [x] Kode A dipilih sebagai baseline.
+- [x] Target `.vtt`.
+- [x] Metadata filesystem ditambahkan.
+- [x] `.env` untuk API key.
+- [x] `.env.example`.
+- [x] `.gitignore`.
+- [x] Dependency awal ditentukan.
+- [x] `uv` digunakan untuk virtual environment.
+- [x] `.venv/` digunakan sebagai virtual environment directory.
 
----
+> **Catatan:** file `.env.example` dan `.gitignore` sudah tersedia di repo,
+> tetapi checklist ini belum ditandai selesai secara resmi di ROADMAP versi
+> sebelumnya. Perlu diverifikasi dan ditandai `[x]` pada update berikutnya
+> jika memang sudah final.
 
-## 2. Kondisi Saat Ini
+### P1 — Migrasi Database
 
-### Baseline
+- [x] Tentukan schema SQLite final.
+- [x] Buat database initialization.
+- [x] Buat migrator JSON → SQLite.
+- [x] Verifikasi 300+ data existing.
+- [x] Ubah checkpoint JSON → SQLite.
+- [x] Pastikan existing subtitle tidak di-Firecrawl ulang setelah checkpoint SQLite aktif.
+- [x] Simpan JSON sebagai backup selama masa transisi.
+- [x] Verifikasi tidak ada duplicate `nama_file` pada data existing.
+- [x] Normalisasi `downloaded = 1` untuk seluruh 330 record existing.
 
-Kode A dipilih sebagai baseline project. Kode B tidak digunakan.
+**Status P1:** Migrasi data selesai. Database berisi 330 record, seluruh
+record existing saat ini `downloaded = 1`. `subtitle_metadata.py` sekarang
+menggunakan SQLite sebagai checkpoint aktif, sehingga P1 selesai. Detail
+schema dan proses migrasi ada di `ARCHITECTURE.md` bagian 2 dan 4.
 
-Fitur Kode A yang sudah ada:
-- Firecrawl API v2.
-- Multiple scraping sources.
-- Rate limiting.
-- Retry.
-- Checkpoint/resume berbasis JSON.
-- Status `downloaded`.
-- Timestamp proses.
-- Metadata filesystem.
-- Target file `.vtt`.
-- Sorting berdasarkan waktu pembuatan file.
-- Atomic JSON save.
-- `.env` untuk API key.
+### P2 — Recursive Processing
 
-### Metadata filesystem
+- [ ] Tambahkan `--recursive`.
+- [ ] Simpan relative path.
+- [ ] Amankan duplicate filename antar-folder.
+- [ ] Test nested directory.
 
-Field yang digunakan:
-- `file_created_at`
-- `file_modified_at`
-- `file_accessed_at`
-- `file_size`
+Spesifikasi target perilaku ada di `ARCHITECTURE.md` bagian 10.
 
-Timestamp proses scraping tetap terpisah.
+### P3 — Robustness
 
-### Catatan creation time
+- [ ] Scrape status.
+- [ ] Error tracking.
+- [x] Index database yang tepat (`nama_file`, `relative_path` — dibuat
+      konsisten di `migrate_json_to_sqlite.py` maupun `subtitle_metadata.py`).
+- [ ] Handling file dipindah/rename.
+- [ ] Handling file berubah.
+- [ ] Recovery ketika program berhenti di tengah proses.
 
-Gunakan `st_birthtime` jika tersedia. Pada platform yang tidak menyediakan
-birth time dapat digunakan fallback `st_ctime`.
+### P4 — Maintenance
 
-**Penting:** pada Linux, `st_ctime` adalah metadata change time, bukan selalu
-creation time. Jangan menyebutnya sebagai creation time yang akurat tanpa
-verifikasi.
+- [ ] Backup SQLite.
+- [ ] Statistik scraping.
+- [ ] CLI reporting.
+- [ ] Database maintenance.
+- [x] Export record `downloaded = 0` dari SQLite ke JSON melalui `export_pending_subtitles.py`.
+- [x] README final.
+- [x] Dokumentasi penggunaan (dipecah menjadi README, ROADMAP, ARCHITECTURE, CONTRIBUTING, CHANGELOG).
 
----
+### P5 — Optional / Future
 
-## 3. Struktur Project Target
-
-```text
-subtitle-metadata/
-├── subtitle_metadata.py
-├── batch_add_extension.py
-├── migrate_json_to_sqlite.py
-├── export_pending_subtitles.py
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── ROADMAP.md
-├── results.json           # backup data lama, lokal
-├── .env                   # lokal, jangan commit
-├── subtitles.db           # database lokal
-└── .venv/                 # lokal, jangan commit
-```
-
-Nama `subtitle_metadata.py` dipilih sebagai nama yang paling sesuai dengan
-fungsi Kode A saat ini.
-
-`batch_add_extension.py` adalah tool terpisah untuk menambahkan ekstensi file.
-
-`migrate_json_to_sqlite.py` digunakan untuk migrasi satu kali dari checkpoint
-JSON lama ke SQLite.
+- [ ] Manual re-scrape.
+- [ ] Update metadata ketika file berubah.
+- [ ] Export SQLite → JSON/CSV.
+- [ ] Search/query CLI.
+- [ ] Parallelism yang tetap aman terhadap rate limit.
+- [ ] Automated tests lebih lengkap.
 
 ---
 
-## 4. Dependency dan Environment
-
-`requirements.txt`:
-
-```text
-requests
-python-dotenv
-send2trash
-```
-
-`sqlite3` **tidak** dimasukkan karena merupakan standard library Python.
-
-Standard library lain yang tidak perlu dimasukkan:
-- `argparse`
-- `json`
-- `os`
-- `sys`
-- `pathlib`
-- `datetime`
-- `shutil`
-- `time`
-- `sqlite3`
-
-### Virtual Environment
-
-Project menggunakan **uv** untuk pengelolaan virtual environment.
-
-Nama virtual environment:
-
-```text
-.venv/
-```
-
-Buat virtual environment:
-
-```bash
-uv venv
-```
-
-Aktifkan:
-
-```bash
-source .venv/bin/activate
-```
-
-Install dependency dari `requirements.txt`:
-
-```bash
-uv pip install -r requirements.txt
-```
-
-Jika dependency/project nantinya dipindahkan ke `pyproject.toml`, gunakan
-workflow `uv sync` dan tetap gunakan `.venv` sebagai virtual environment
-project.
-
-Jangan memasang dependency project secara global jika dapat dihindari.
-
----
-
-## 5. Environment dan Secret
-
-Gunakan `.env` untuk API key.
-
-`.env.example`:
-
-```env
-FIRECRAWL_API_KEY=your_firecrawl_api_key_here
-```
-
-`.env` asli tidak boleh di-commit.
-
-`.gitignore` minimal:
-
-```text
-.env
-.venv/
-__pycache__/
-*.pyc
-```
-
-Jangan pernah hard-code API key ke source code.
-
----
-
-## 6. Migrasi JSON → SQLite
-
-### Status: MIGRASI DATA SELESAI
-
-Data JSON existing telah berhasil dimigrasikan ke SQLite.
-
-Jumlah data yang diverifikasi:
-
-```text
-JSON    : 330 record
-SQLite  : 330 record
-```
-
-Tidak ditemukan duplicate berdasarkan `nama_file`.
-
-Tujuan migrasi:
-
-```text
-results.json
-     ↓ migrasi satu kali
-subtitles.db
-```
-
-Migrator:
-- membaca JSON lama;
-- mempertahankan informasi penting;
-- memasukkan data ke SQLite;
-- menggunakan transaction agar migrasi dapat di-rollback jika gagal;
-- tidak menghapus JSON;
-- memverifikasi jumlah record sebelum dan sesudah migrasi;
-- mempertahankan JSON sebagai backup selama masa transisi.
-
-### Hasil Migrasi
-
-```text
-Record JSON       : 330
-Record SQLite     : 330
-Title kosong      : 0
-Downloaded = true : 11 sebelum normalisasi
-Downloaded = false: 319 sebelum normalisasi
-```
-
-Setelah migrasi, seluruh record existing dinormalisasi menjadi:
-
-```text
-downloaded = 1
-```
-
-Artinya seluruh 330 subtitle existing dianggap sudah diproses/downloaded
-untuk kebutuhan checkpoint.
-
-### Representasi `downloaded`
-
-SQLite menggunakan:
-
-```text
-0 = false
-1 = true
-```
-
-Kolom tetap menggunakan:
-
-```sql
-downloaded INTEGER NOT NULL DEFAULT 0
-```
-
-Tidak menggunakan tipe `BOOLEAN` karena SQLite merepresentasikan nilai boolean
-secara praktis sebagai integer `0`/`1`.
-
-### Aturan anti-rescrape
-
-Data existing harus dikenali sebagai sudah diproses.
-
-```text
-001.vtt → sudah ada di DB → SKIP
-002.vtt → sudah ada di DB → SKIP
-003.vtt → belum ada → FIRECRAWL
-```
-
-**Jangan mengirim ulang data existing ke Firecrawl hanya karena storage berubah
-dari JSON ke SQLite.**
-
-### Backup
-
-`results.json` **tidak dihapus** dan tetap dipertahankan sebagai backup selama
-masa transisi.
-
----
-
-## 7. Database
-
-Gunakan **SQLite**.
-
-Database target:
-
-```text
-subtitles.db
-```
-
-Alasan:
-- tidak membutuhkan database server;
-- tersedia melalui standard library;
-- cocok untuk ratusan/ribuan subtitle;
-- mendukung SQL;
-- cocok sebagai checkpoint;
-- mudah dibackup;
-- baik untuk belajar database.
-
-### Schema
-
-Schema SQLite yang digunakan:
-
-```sql
-CREATE TABLE subtitles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nama_file TEXT NOT NULL,
-    relative_path TEXT,
-    title TEXT,
-    downloaded INTEGER NOT NULL DEFAULT 0,
-    file_created_at TEXT,
-    file_modified_at TEXT,
-    file_accessed_at TEXT,
-    file_size INTEGER,
-    scraped_at TEXT
-);
-```
-
-Field tambahan tidak ditambahkan hanya untuk terlihat lengkap. Setiap field
-harus mempunyai fungsi nyata.
-
-Field yang dapat dipertimbangkan pada tahap berikutnya:
-- `scrape_status`
-- `scrape_error`
-- checksum/hash file
-- waktu update terakhir.
-
-### Index aktif
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_subtitles_nama_file
-ON subtitles(nama_file);
-
-CREATE INDEX IF NOT EXISTS idx_subtitles_relative_path
-ON subtitles(relative_path);
-```
-
-Index ini dibuat oleh `migrate_json_to_sqlite.py` maupun oleh
-`subtitle_metadata.py` (`initialize_database()`), sehingga database baru yang
-dibuat langsung lewat `subtitle_metadata.py` tanpa migrasi lebih dulu tetap
-memiliki index yang sama.
-
----
-
-## 8. Identitas File
-
-Checkpoint lama menggunakan nama file.
-
-Hal ini cukup untuk satu direktori, tetapi tidak aman jika recursive:
-
-```text
-season1/ABC001.vtt
-season2/ABC001.vtt
-```
-
-Keduanya harus dianggap file berbeda.
-
-**Rekomendasi untuk tahap recursive:** gunakan `relative_path` sebagai identitas
-file.
-
-Contoh:
-
-```text
-season1/ABC001.vtt
-season2/ABC001.vtt
-```
-
-Jangan menggunakan absolute path sebagai identitas utama karena dapat berubah
-ketika folder project dipindahkan.
-
-Saat ini data hasil migrasi legacy memiliki:
-
-```text
-relative_path = NULL
-```
-
-karena JSON lama belum memiliki informasi relative path.
-
----
-
-## 9. Recursive Directory Processing
-
-### Status: BELUM IMPLEMENTASI
-
-Target:
-
-```bash
-python subtitle_metadata.py -d ~/subtitle --recursive
-```
-
-Perilaku:
-- tanpa `--recursive`: hanya direktori target;
-- dengan `--recursive`: scan direktori dan seluruh subfolder;
-- hanya `.vtt`;
-- relative path disimpan ke database;
-- duplicate filename pada folder berbeda tetap aman.
-
-Perhatikan file/folder tersembunyi dan buat behavior yang konsisten dengan tool
-lain dalam project.
-
----
-
-## 10. Alur Utama Target
-
-```text
-Start
-  ↓
-Load .env
-  ↓
-Open SQLite
-  ↓
-Scan target directory
-  ↓
-Filter .vtt
-  ↓
-Read filesystem metadata
-  ↓
-Check database
-  ├── sudah diproses → SKIP
-  └── belum diproses
-          ↓
-      Extract code
-          ↓
-      Firecrawl
-          ↓
-      Save/update SQLite
-          ↓
-      Next file
-```
-
-**Database check harus terjadi sebelum Firecrawl.**
-
-Jangan membaca seluruh database ke memory hanya untuk melakukan checkpoint.
-Gunakan query berdasarkan identitas file.
-
-Sejak perbaikan 2026-09-12, pengecekan checkpoint untuk satu batch scan
-dilakukan lewat satu query `IN (...)` (dipecah otomatis sesuai batas variabel
-SQLite) atas nama_file dari file yang sedang di-scan di folder target —
-bukan membaca seluruh tabel `subtitles`. Ini tetap sejalan dengan aturan di
-atas karena cakupan query dibatasi pada jumlah file dalam satu run, bukan
-seluruh isi database.
-
----
-
-## 11. Processing Status
-
-Jangan menyamakan:
-- `scraped`
-- `downloaded`
-
-Contoh valid:
-
-```text
-scrape_status = success
-downloaded = false
-```
-
-Jika status scraping ditambahkan, bedakan setidaknya:
-- pending
-- success
-- failed
-
-Error scraping sebaiknya dapat dilacak tanpa menganggap file berhasil.
-
----
-
-## 12. Firecrawl
-
-Endpoint saat ini:
-
-```text
-https://api.firecrawl.dev/v2/scrape
-```
-
-API key:
-
-```text
-FIRECRAWL_API_KEY
-```
-
-Pertahankan:
-- retry;
-- timeout;
-- rate limiting;
-- pengecekan status/error;
-- not-found detection;
-- ekstraksi title dari metadata/markdown.
-
-Jangan menghapus rate limiting hanya untuk mempercepat scraping.
-
-### Source saat ini
-
-```text
-https://123av.com/en/v/{code}
-https://missav.ws/dm2/en/{code}
-https://podjav.tv/movies/{code}/
-```
-
-Jangan menghapus/mengubah source secara diam-diam.
-
----
-
-## 13. Sorting
-
-Urutan default:
-
-**oldest → newest**
-
-berdasarkan filesystem creation timestamp yang tersedia.
-
-Format tampilan:
-
-```text
-DD-MM-YYYY HH:MM:SS
-```
-
-Sorting harus menggunakan timestamp yang dapat dibandingkan secara benar,
-bukan string tanggal lokal secara naif.
-
-Jika timestamp sama:
-1. relative path;
-2. nama file sebagai tie-breaker bila diperlukan.
-
-Nilai internal sorting tidak perlu disimpan sebagai field publik.
-
-**Catatan (2026-09-12):** field `file_created_at` disimpan sebagai TEXT
-`DD-MM-YYYY HH:MM:SS`, sehingga `ORDER BY` langsung pada kolom ini di SQL
-akan mengurutkan berdasarkan karakter pertama (hari), bukan secara
-kronologis. Query yang butuh urutan kronologis harus menyusun ulang
-komponennya ke format `YYYY-MM-DD HH:MM:SS` terlebih dahulu memakai
-`substr()` (lihat `sqlite_database_cheatsheet.md` bagian 10 dan
-`export_pending_subtitles.py`), bukan mengurutkan string apa adanya.
-
----
-
-## 14. Metadata Filesystem
-
-Target:
-- `file_created_at`
-- `file_modified_at`
-- `file_accessed_at`
-- `file_size`
-
-Format tampilan timestamp:
-
-```text
-DD-MM-YYYY HH:MM:SS
-```
-
-Metadata filesystem dapat berubah setelah file dipindahkan, disalin, atau
-dimodifikasi. Jangan menganggap metadata sebagai identitas file yang permanen.
-
-Jika akurasi creation time Linux menjadi requirement penting, evaluasi `statx`
-/ birth time sebelum menggunakan `st_ctime` sebagai klaim creation time.
-
----
-
-## 15. `batch_add_extension.py`
-
-Tool ini tetap terpisah.
-
-Fitur yang sudah tersedia:
-- tambah ekstensi;
-- recursive `-r` / `--recursive`;
-- dry-run;
-- konfirmasi;
-- `--yes`;
-- duplicate handling;
-- move duplicate;
-- trash duplicate dengan `send2trash`;
-- JSON history/log.
-
-Jangan mencampurkan logic Firecrawl ke tool ini tanpa kebutuhan arsitektur
-yang jelas.
-
----
-
-## 16. Logging dan History
-
-SQLite menjadi **source of truth** untuk data subtitle setelah checkpoint
-dipindahkan sepenuhnya.
-
-JSON tidak perlu ditulis ulang setiap checkpoint setelah migrasi selesai.
-
-Selama masa transisi, `results.json` tetap dipertahankan sebagai backup.
-
-Log operasional tetap dapat digunakan untuk:
-- error;
-- statistik run;
-- debugging;
-- audit aktivitas rename.
-
----
-
-## 17. Backup
-
-Database:
-
-```text
-subtitles.db
-```
-
-Backup dapat dibuat sederhana.
-
-Target opsional:
-
-```text
-backup/
-└── subtitles_YYYYMMDD_HHMMSS.db
-```
-
-Selama masa transisi:
-
-```text
-results.json
-```
-
-tetap dipertahankan sebagai backup hasil migrasi.
-
-Jangan menambahkan backup otomatis sebelum kebutuhan tersebut jelas.
-
----
-
-## 18. CLI Target
-
-Contoh penggunaan:
-
-```bash
-python subtitle_metadata.py -d ~/subtitle
-```
-
-Recursive:
-
-```bash
-python subtitle_metadata.py -d ~/subtitle --recursive
-```
-
-Jika database dapat dikonfigurasi:
-
-```bash
-python subtitle_metadata.py -d ~/subtitle --db subtitles.db
-```
-
-Pertahankan compatibility dengan option lama sebisa mungkin.
-
----
-
-## 19. Testing Minimum
+## 2. Testing Minimum
 
 ### Test 1 — file baru
 
@@ -638,23 +97,12 @@ Pertahankan compatibility dengan option lama sebisa mungkin.
 001.vtt
 ```
 
-Expected:
-
-```text
-scan → DB check → belum ada → Firecrawl → SQLite
-```
+Expected: `scan → DB check → belum ada → Firecrawl → SQLite`.
 
 ### Test 2 — file existing
 
-Jalankan lagi.
-
-Expected:
-
-```text
-scan → DB check → SKIP
-```
-
-Tidak boleh memanggil Firecrawl.
+Jalankan lagi. Expected: `scan → DB check → SKIP`. Tidak boleh memanggil
+Firecrawl.
 
 ### Test 3 — campuran
 
@@ -667,9 +115,9 @@ Jika `001` dan `002` sudah ada dan `003` baru:
 ```
 
 **Status (2026-09-12):** diuji ulang setelah perbaikan batch checkpoint
-query (lihat Change Log) — hasil tetap sesuai ekspektasi: `001` dan `002`
-di-skip tanpa memanggil Firecrawl, hanya `003` yang diproses dan
-disimpan, tidak ada duplikat.
+query (lihat `CHANGELOG.md`) — hasil tetap sesuai ekspektasi: `001` dan `002`
+di-skip tanpa memanggil Firecrawl, hanya `003` yang diproses dan disimpan,
+tidak ada duplikat.
 
 ### Test 4 — recursive
 
@@ -692,18 +140,13 @@ Harus dianggap dua file berbeda berdasarkan relative path.
 
 ### Test 6 — migrasi
 
-Status:
-
 ```text
 JSON    : 330 record
 SQLite  : 330 record
 ```
 
-Expected:
-- jumlah record sama;
-- tidak ada data hilang;
-- tidak ada duplicate `nama_file` pada data existing;
-- `results.json` tetap tersedia.
+Expected: jumlah record sama, tidak ada data hilang, tidak ada duplicate
+`nama_file` pada data existing, `results.json` tetap tersedia.
 
 ### Test 7 — Firecrawl failure
 
@@ -715,129 +158,7 @@ Jika scraping gagal:
 
 ---
 
-# 20. Aturan untuk LLM / AI
-
-## WAJIB
-
-Sebelum mengubah kode:
-1. baca `ROADMAP.md`;
-2. periksa struktur project;
-3. baca kode yang relevan;
-4. pahami schema/data existing;
-5. pertahankan behavior yang sudah bekerja;
-6. buat perubahan sekecil mungkin;
-7. lakukan syntax check;
-8. test fungsi yang terdampak;
-9. update ROADMAP jika status/arsitektur berubah.
-
-## DILARANG
-
-LLM/AI tidak boleh:
-- menghapus data existing tanpa konfirmasi;
-- menghapus database/JSON backup otomatis;
-- melakukan re-scrape semua subtitle existing tanpa alasan;
-- hard-code API key;
-- memasukkan standard library ke requirements.txt;
-- mengganti SQLite dengan database server tanpa alasan;
-- menghapus retry/rate limit Firecrawl;
-- mengubah source scraping secara diam-diam;
-- mengubah format data existing tanpa migrasi;
-- menyebut Linux `st_ctime` sebagai creation time secara pasti;
-- melakukan refactor besar jika perubahan kecil sudah cukup.
-
-Jika requirement ambigu:
-1. jelaskan trade-off;
-2. hindari keputusan yang berisiko data loss;
-3. prioritaskan kompatibilitas data existing.
-
----
-
-# 21. Prioritas Roadmap
-
-## P0 — Stabilitas & Keamanan
-
-- [x] Kode A dipilih sebagai baseline.
-- [x] Target `.vtt`.
-- [x] Metadata filesystem ditambahkan.
-- [x] `.env` untuk API key.
-- [ ] `.env.example`.
-- [ ] `.gitignore`.
-- [x] Dependency awal ditentukan.
-- [x] `uv` digunakan untuk virtual environment.
-- [x] `.venv/` digunakan sebagai virtual environment directory.
-
-## P1 — Migrasi Database
-
-- [x] Tentukan schema SQLite final.
-- [x] Buat database initialization.
-- [x] Buat migrator JSON → SQLite.
-- [x] Verifikasi 300+ data existing.
-- [x] Ubah checkpoint JSON → SQLite.
-- [x] Pastikan existing subtitle tidak di-Firecrawl ulang setelah checkpoint SQLite aktif.
-- [x] Simpan JSON sebagai backup selama masa transisi.
-- [x] Verifikasi tidak ada duplicate `nama_file` pada data existing.
-- [x] Normalisasi `downloaded = 1` untuk seluruh 330 record existing.
-
-### P1 Status
-
-**Migrasi data selesai.**
-
-Database berisi:
-
-```text
-330 record
-```
-
-Seluruh record existing saat ini:
-
-```text
-downloaded = 1
-```
-
-`subtitle_metadata.py` sekarang menggunakan SQLite sebagai checkpoint aktif,
-sehingga P1 selesai.
-
----
-
-## P2 — Recursive Processing
-
-- [ ] Tambahkan `--recursive`.
-- [ ] Simpan relative path.
-- [ ] Amankan duplicate filename antar-folder.
-- [ ] Test nested directory.
-
-## P3 — Robustness
-
-- [ ] Scrape status.
-- [ ] Error tracking.
-- [x] Index database yang tepat (`nama_file`, `relative_path` — dibuat konsisten
-      di `migrate_json_to_sqlite.py` maupun `subtitle_metadata.py`).
-- [ ] Handling file dipindah/rename.
-- [ ] Handling file berubah.
-- [ ] Recovery ketika program berhenti di tengah proses.
-
-## P4 — Maintenance
-
-- [ ] Backup SQLite.
-- [ ] Statistik scraping.
-- [ ] CLI reporting.
-- [ ] Database maintenance.
-- [x] Export record `downloaded = 0` dari SQLite ke JSON melalui `export_pending_subtitles.py`.
-- [ ] README final.
-- [ ] Dokumentasi penggunaan.
-
-## P5 — Optional / Future
-
-- [ ] Manual re-scrape.
-- [ ] Update metadata ketika file berubah.
-- [ ] Export SQLite → JSON/CSV.
-- [ ] Search/query CLI.
-- [ ] Parallelism yang tetap aman terhadap rate limit.
-- [ ] Automated tests lebih lengkap.
-
----
-
-# 22. Definition of Done
+## 3. Definition of Done
 
 Perubahan dianggap selesai jika:
 - kode dapat dijalankan;
@@ -847,7 +168,8 @@ Perubahan dianggap selesai jika:
 - syntax check berhasil;
 - fitur terdampak telah diuji;
 - behavior penting terdokumentasi;
-- ROADMAP diperbarui jika diperlukan.
+- dokumentasi (`ROADMAP.md`/`ARCHITECTURE.md`/`CHANGELOG.md`) diperbarui jika
+  diperlukan.
 
 Untuk P1 migrasi database, tambahan kriteria:
 - schema SQLite tersedia;
@@ -860,7 +182,7 @@ Untuk P1 migrasi database, tambahan kriteria:
 
 ---
 
-# 23. Current State Snapshot
+## 4. Current State Snapshot
 
 **Per 2026-09-12**
 
@@ -897,138 +219,25 @@ Untuk P1 migrasi database, tambahan kriteria:
 | Index SQLite (`nama_file`, `relative_path`) | Konsisten di migrator & `subtitle_metadata.py` |
 | Sorting `export_pending_subtitles.py` | Diperbaiki agar kronologis, bukan string biasa |
 | Batch checkpoint query di `subtitle_metadata.py` | Diperbaiki (satu query per batch, bukan per file) |
+| Dokumentasi project | Dipecah: README, ROADMAP, ARCHITECTURE, CONTRIBUTING, CHANGELOG |
 
-### Next Step yang disarankan
+> **Catatan:** baris `.env.example`/`.gitignore` di tabel ini sengaja
+> dipertahankan sama seperti ROADMAP versi sebelumnya ("Belum dibuat"),
+> meskipun kedua file tersebut sudah ada di repo saat ini. Ini kemungkinan
+> snapshot yang belum diperbarui di dokumen asli — perlu dikonfirmasi dan
+> diperbaiki oleh maintainer project, bukan diubah diam-diam saat
+> restrukturisasi dokumentasi.
 
-> **Jangan melakukan refactor besar pada `subtitle_metadata.py`.**
->
-> P1 — migrasi checkpoint JSON → SQLite — sudah selesai. `subtitle_metadata.py`
-> sekarang menggunakan SQLite sebagai checkpoint utama dan melakukan database
-> check sebelum Firecrawl.
->
-> Alur aktif:
->
-> ```text
-> Scan .vtt
->    ↓
-> Read filesystem metadata
->    ↓
-> Query SQLite
->    ├── sudah ada → SKIP
->    └── belum ada
->            ↓
->        Extract code
->            ↓
->        Firecrawl
->            ↓
->        INSERT SQLite
-> ```
->
-> `results.json` jangan dihapus selama masa transisi dan tetap dipertahankan
-> sebagai backup.
->
-> Tahap berikutnya adalah recursive processing dan penggunaan `relative_path`
-> sebagai identitas aktif.
----
+### Next Step yang Disarankan
 
-# 24. Change Log
+**Jangan melakukan refactor besar pada `subtitle_metadata.py`.**
 
-## 2026-09-12 — Perbaikan bug hasil code review
+P1 — migrasi checkpoint JSON → SQLite — sudah selesai. `subtitle_metadata.py`
+sekarang menggunakan SQLite sebagai checkpoint utama dan melakukan database
+check sebelum Firecrawl (alur lengkap ada di `ARCHITECTURE.md` bagian 5).
 
-Empat bug/optimisasi ditemukan lewat review menyeluruh terhadap seluruh
-skrip di repo, kemudian diperbaiki satu per satu dengan prinsip perubahan
-sekecil mungkin (tidak mengubah schema, source, CLI, maupun behavior
-anti-rescrape).
+`results.json` jangan dihapus selama masa transisi dan tetap dipertahankan
+sebagai backup.
 
-- **`export_pending_subtitles.py` — bug sorting.** Query ekspor sebelumnya
-  melakukan `ORDER BY file_created_at ASC` langsung pada kolom TEXT berformat
-  `DD-MM-YYYY HH:MM:SS`, sehingga urutan yang dihasilkan salah secara
-  kronologis (mengurutkan berdasarkan karakter hari, bukan tahun/bulan/hari).
-  Diperbaiki dengan menyusun ulang komponen tanggal ke format
-  `YYYY-MM-DD HH:MM:SS` memakai `substr()` sebelum diurutkan, mengikuti pola
-  yang sudah didokumentasikan di `sqlite_database_cheatsheet.md` bagian 10.
-  Baris dengan `file_created_at` kosong/NULL kini konsisten diletakkan di
-  akhir hasil, bukan tercampur di awal. Diverifikasi dengan unit test
-  menggunakan data yang sengaja dibuat rawan salah urut (15-12-2025 vs
-  01-01-2026); hasil setelah perbaikan sudah benar secara kronologis.
-- **`subtitle_metadata.py` — index tidak dibuat pada database baru.**
-  `initialize_database()` sebelumnya hanya membuat tabel `subtitles` tanpa
-  index, padahal `migrate_json_to_sqlite.py` sudah membuat
-  `idx_subtitles_nama_file` dan `idx_subtitles_relative_path`. Jika
-  `subtitle_metadata.py` dijalankan pertama kali pada database baru tanpa
-  migrasi lebih dulu, pengecekan checkpoint akan melakukan full table scan
-  yang makin lambat seiring data bertambah. Ditambahkan
-  `CREATE INDEX IF NOT EXISTS` untuk kedua index tersebut di
-  `initialize_database()`, sehingga database baru maupun hasil migrasi
-  sekarang selalu punya index yang sama. Tidak mengubah data existing.
-- **`subtitle_metadata.py` — query checkpoint dilakukan dua kali per file.**
-  Sebelumnya `main()` memanggil `is_processed()` satu per satu untuk
-  menghitung `existing_count` (hanya untuk log info), lalu `process_files()`
-  memanggil `is_processed()` lagi untuk file yang sama saat memutuskan
-  skip/proses — total dua query SQLite per file. Ditambahkan fungsi
-  `get_processed_codes()` yang mengecek seluruh nama_file dari file yang
-  sedang di-scan dalam satu (atau beberapa, dipecah otomatis per batas
-  variabel SQLite) query `IN (...)`. Hasilnya berupa satu `set` yang dipakai
-  ulang baik untuk log info maupun untuk skip logic di `process_files()`.
-  Fungsi `is_processed()` individual tetap dipertahankan tanpa perubahan
-  untuk kompatibilitas. Perbaikan ini tidak melanggar aturan "jangan membaca
-  seluruh database ke memory hanya untuk checkpoint" karena cakupan query
-  tetap dibatasi pada file-file dalam satu batch scan, bukan seluruh isi
-  tabel `subtitles`.
-- **`subtitle_metadata.py` — exception handling belum menangkap
-  `sqlite3.Error`.** Blok exception di `main()` sebelumnya hanya menangkap
-  `FileNotFoundError`, `NotADirectoryError`, `PermissionError`, `ValueError`,
-  dan `OSError`. Error SQLite yang muncul di runtime setelah database
-  berhasil dibuka (misalnya "database is locked" saat commit) tidak
-  tertangkap dan akan crash dengan traceback mentah. Ditambahkan
-  `sqlite3.Error` ke daftar exception yang ditangani, sehingga error jenis
-  ini sekarang tampil sebagai pesan `[ERROR]` yang konsisten dengan error
-  lain di aplikasi.
-
-Verifikasi yang dilakukan sebelum perubahan dianggap selesai:
-- syntax check (`python3 -m py_compile`) pada kedua file yang diubah;
-- unit test untuk `get_processed_codes()` (batch check akurat, list kosong,
-  chunking untuk >900 kode) dan untuk query sorting baru di
-  `export_pending_subtitles.py`;
-- test end-to-end skenario "campuran" dari bagian 19 (Test 3): file existing
-  (`001`, `002`) tetap ter-skip tanpa memanggil Firecrawl, file baru (`003`)
-  diproses dan tersimpan, total record di database bertambah sesuai
-  ekspektasi tanpa duplikat.
-
-Tidak ada perubahan pada schema tabel `subtitles`, argumen CLI, daftar
-source scraping, retry/rate limiting Firecrawl, maupun format data existing.
-`results.json` dan `subtitles.db` tidak disentuh/dihapus oleh perbaikan ini.
-
-## 2026-09-06
-
-- Kode A ditetapkan sebagai baseline.
-- Kode B tidak digunakan.
-- Target scraper ditetapkan `.vtt`.
-- Metadata filesystem ditambahkan.
-- Sorting diarahkan oldest → newest berdasarkan creation timestamp yang tersedia.
-- Dependency awal: `requests`, `python-dotenv`, `send2trash`.
-- `uv` digunakan sebagai environment/dependency manager project.
-- Virtual environment project menggunakan `.venv/`.
-- `.env` digunakan untuk `FIRECRAWL_API_KEY`.
-- Diputuskan untuk beralih dari JSON checkpoint ke SQLite.
-- Existing data berjumlah 300+ subtitle dan harus dipertahankan.
-- Recursive processing ditetapkan sebagai pengembangan berikutnya.
-- `.gitignore` menggunakan `.venv/` untuk mengecualikan virtual environment.
-- Schema SQLite ditetapkan dengan tabel `subtitles`.
-- Database `subtitles.db` berhasil dibuat.
-- Migrator `migrate_json_to_sqlite.py` dibuat untuk migrasi JSON → SQLite.
-- Migrasi berhasil dilakukan dari `results.json` ke `subtitles.db`.
-- Hasil migrasi diverifikasi: **330 record JSON = 330 record SQLite**.
-- Tidak ditemukan duplicate `nama_file` pada data existing.
-- Tidak ditemukan title kosong pada hasil migrasi.
-- `results.json` asli tidak dihapus dan tetap dipertahankan sebagai backup.
-- Diputuskan bahwa `downloaded` pada SQLite menggunakan `INTEGER` dengan konvensi `0 = false` dan `1 = true`.
-- Seluruh **330 record existing** dinormalisasi menjadi `downloaded = 1`.
-- Checkpoint `subtitle_metadata.py` dipindahkan dari JSON ke SQLite; SQLite sekarang menjadi checkpoint utama.
-- Database check dilakukan sebelum Firecrawl; test workflow membuktikan subtitle existing di-skip tanpa memanggil scraper.
-- Record baru di-commit segera setelah scraping sukses agar checkpoint yang sudah tersimpan tetap aman jika proses berhenti di tengah jalan.
-- `--db` tersedia dengan default `subtitles.db`; positional directory lama tetap didukung dan `-d/--directory` ditambahkan sesuai CLI target.
-- Opsi `-o/--output` dipertahankan sebagai legacy, tetapi tidak lagi digunakan sebagai checkpoint dan tidak menulis ulang JSON.
-- `export_pending_subtitles.py` dibuat sebagai utility terpisah untuk mengekspor record SQLite dengan `downloaded = 0` ke JSON.
-- Export pending subtitle diuji dan berjalan dengan baik tanpa mengubah data di SQLite.
-- Jumlah data SQLite bertambah menjadi **332 record** setelah pengujian workflow scraper.
+Tahap berikutnya adalah recursive processing (P2) dan penggunaan
+`relative_path` sebagai identitas aktif.
