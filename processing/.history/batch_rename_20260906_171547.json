@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-09-06T17:15:47",
+  "command": {
+    "folder": "/home/skaska/Subtitle/processing",
+    "extension": "vtt",
+    "recursive": false,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/FJIN-154",
+      "to": "/home/skaska/Subtitle/processing/FJIN-154.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/JUR-548",
+      "to": "/home/skaska/Subtitle/processing/JUR-548.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/HEZ-888",
+      "to": "/home/skaska/Subtitle/processing/HEZ-888.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/CJOD-350",
+      "to": "/home/skaska/Subtitle/processing/CJOD-350.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/NGOD-287",
+      "to": "/home/skaska/Subtitle/processing/NGOD-287.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/FNS-234",
+      "to": "/home/skaska/Subtitle/processing/FNS-234.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/KSBJ-438",
+      "to": "/home/skaska/Subtitle/processing/KSBJ-438.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 7,
+    "total_renamed": 7,
+    "total_skipped_has_ext": 0,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}

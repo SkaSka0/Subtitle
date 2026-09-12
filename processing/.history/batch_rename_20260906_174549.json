@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-09-06T17:45:49",
+  "command": {
+    "folder": "/home/skaska/Subtitle/processing",
+    "extension": "vtt",
+    "recursive": false,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/OFES-005",
+      "to": "/home/skaska/Subtitle/processing/OFES-005.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/MIAA-455",
+      "to": "/home/skaska/Subtitle/processing/MIAA-455.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/START-600V",
+      "to": "/home/skaska/Subtitle/processing/START-600V.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/processing/JUR-175",
+      "to": "/home/skaska/Subtitle/processing/JUR-175.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 6,
+    "total_renamed": 4,
+    "total_skipped_has_ext": 2,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}
