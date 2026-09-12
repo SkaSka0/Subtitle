@@ -318,6 +318,51 @@ ORDER BY downloaded ASC, id DESC;
 
 Dengan query ini, `downloaded = 0` muncul lebih dahulu.
 
+## 5.11 Mengubah semua data downloaded = 0 menjadi 1
+
+> **PERHATIAN:** ini adalah operasi massal yang mengubah SELURUH record
+> pending menjadi downloaded. Lihat dulu datanya sebelum menjalankan, dan
+> gunakan transaction agar bisa di-rollback jika salah.
+
+Cek dulu berapa banyak yang akan terdampak:
+
+```sql
+SELECT COUNT(*) AS akan_diubah
+FROM subtitles
+WHERE downloaded = 0;
+```
+
+Lihat isi datanya (opsional, untuk memastikan):
+
+```sql
+SELECT id, nama_file, title, downloaded
+FROM subtitles
+WHERE downloaded = 0;
+```
+
+Jalankan perubahan di dalam transaction:
+
+```sql
+BEGIN TRANSACTION;
+
+UPDATE subtitles
+SET downloaded = 1
+WHERE downloaded = 0;
+
+-- Periksa hasil sebelum commit
+SELECT COUNT(*) AS masih_pending
+FROM subtitles
+WHERE downloaded = 0;
+
+COMMIT;
+```
+
+Jika ternyata salah/belum yakin, batalkan dengan:
+
+```sql
+ROLLBACK;
+```
+
 ---
 
 # 6. INSERT — Menambah Data
