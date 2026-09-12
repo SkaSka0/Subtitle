@@ -7,6 +7,107 @@
 
 ---
 
+## 2026-09-13 (lanjutan) — Aturan baru di CONTRIBUTING.md
+
+Ditambahkan section baru **"Prinsip Desain & Pemeliharaan Kode"** di
+`CONTRIBUTING.md`, berisi lima aturan konkret yang lahir dari pengalaman
+menangani `subtitle_metadata.py` pada tanggal yang sama:
+
+1. **Satu fungsi, satu tanggung jawab** — dasar dari refactor
+   `scrape_title()` (lihat entri di bawah).
+2. **Helper privat/internal diberi prefix underscore** — konvensi yang
+   baru diperkenalkan lewat helper `_send_scrape_request()`,
+   `_compute_retry_wait()`, `_parse_scrape_response()`,
+   `_target_status_failed()`, `_extract_valid_title()`.
+3. **Update semua referensi tekstual saat fungsi diubah/dihapus** —
+   ditulis langsung dari kasus nyata `is_processed()` yang sudah
+   dihapus penggunaannya sejak BUG #3 tetapi docstring/komentar
+   fungsi lain masih menyebutnya (baru dibersihkan terpisah, lihat
+   entri "Pembersihan dead code" di bawah).
+4. **Perubahan logic/percabangan wajib diverifikasi dengan test** —
+   ditulis dari pengalaman refactor `scrape_title()`, di mana satu
+   detail perilaku halus (`_target_status_failed()` yang sengaja tidak
+   boleh menghentikan proses saat status tidak valid) baru benar-benar
+   terverifikasi lewat test otomatis, bukan dari membaca kode saja.
+5. **Config yang terikat tier akun/environment sebaiknya di `.env`** —
+   dari diskusi soal `MIN_SECONDS_PER_REQUEST` yang nilainya terikat ke
+   tier akun Firecrawl (belum dieksekusi, baru didokumentasikan sebagai
+   aturan untuk perubahan konfigurasi berikutnya).
+
+Aturan #1 secara eksplisit menyatakan hanya wajib untuk kode **baru**;
+kode existing yang belum sesuai tidak langsung di-refactor tanpa
+konfirmasi, mengikuti aturan "perubahan sekecil mungkin" yang sudah ada
+sebelumnya di `CONTRIBUTING.md`.
+
+Tidak ada perubahan pada kode (`.py`), schema, maupun CLI dari entri ini.
+
+## 2026-09-13 (lanjutan) — Refactor scrape_title() menjadi fungsi-fungsi kecil
+
+`scrape_title()` sebelumnya menangani banyak tanggung jawab sekaligus dalam
+satu badan fungsi: loop antar source, loop retry HTTP 429, eksekusi request,
+parsing response, deteksi halaman 404, dan ekstraksi title. Dipecah menjadi
+lima helper privat (prefix `_`), masing-masing satu tanggung jawab:
+
+- `_send_scrape_request(target_url, headers)` — mengirim satu request ke
+  Firecrawl; menangani timeout/connection error/exception lain dan
+  mengembalikan `None` jika request gagal total.
+- `_compute_retry_wait(response, retry_count)` — menghitung waktu tunggu
+  retry (mengikuti `Retry-After` atau exponential backoff).
+- `_parse_scrape_response(response)` — parsing body JSON, mengembalikan
+  `None` jika bukan JSON valid.
+- `_target_status_failed(target_status)` — menilai apakah status HTTP
+  website target menunjukkan kegagalan. Mempertahankan perilaku asli:
+  jika `target_status` tidak bisa di-parse sebagai integer, ini **bukan**
+  dianggap kegagalan (hanya di-log sebagai warning, tidak menghentikan
+  proses source saat ini).
+- `_extract_valid_title(metadata, markdown)` — mengambil title dari
+  metadata/markdown lalu memvalidasi terhadap `NOT_FOUND_KEYWORDS`.
+
+`scrape_title()` sekarang murni orkestrasi (loop source → loop retry →
+panggil helper), dari sebelumnya satu fungsi besar bercabang dalam menjadi
+enam statement inti per iterasi.
+
+**Ini murni ekstraksi, bukan perubahan logic.** Urutan pengecekan, pesan
+log, dan keputusan `break`/`continue`/`return` untuk setiap kasus dijaga
+identik dengan versi sebelumnya — termasuk detail halus seperti
+`_target_status_failed()` yang sengaja tidak menghentikan proses saat
+statusnya tidak valid (perilaku asli yang mudah salah kalau di-refactor
+ceroboh).
+
+Verifikasi yang dilakukan:
+- `python3 -m py_compile` — lolos;
+- test verifikasi manual (`test_scrape_title_refactor.py`, tidak menjadi
+  bagian permanen test suite) meng-cover 10 skenario: sukses di source
+  pertama, 404 terdeteksi dari title, 404 terdeteksi dari isi markdown,
+  429 lalu retry sukses di source yang sama, 429 exhausted lalu pindah
+  source, timeout lalu pindah source, JSON tidak valid lalu pindah source,
+  `target_status` tidak valid tidak menghentikan proses, semua source gagal
+  mengembalikan string kosong, dan HTML entity/whitespace pada title
+  di-decode & di-strip dengan benar. Seluruh 10 skenario lulus.
+
+Tidak ada perubahan pada retry/rate-limit Firecrawl, daftar source, format
+data yang disimpan ke SQLite, maupun CLI. Perubahan hanya pada struktur
+internal `scrape_title()`.
+
+## 2026-09-13 — Pembersihan dead code
+
+- **`subtitle_metadata.py` — fungsi `is_processed()` dihapus.** Sejak
+  perbaikan BUG #3 (lihat entri 2026-09-12), `process_files()` sudah beralih
+  memakai `already_processed` (hasil `get_processed_codes()`) untuk keputusan
+  skip per file, sehingga `is_processed()` tidak lagi dipanggil dari mana pun
+  di file ini. Docstring `get_processed_codes()` sebelumnya juga masih
+  menyebut "dipertahankan sebagai fungsi terpisah (dipakai saat memproses
+  satu file dalam `process_files()`)" — pernyataan ini sudah tidak akurat dan
+  ikut diperbaiki. Sisa referensi ke nama `is_processed()` di komentar
+  `initialize_database()` dan `main()` juga dibersihkan.
+
+  Tidak ada perubahan behavior: alur checkpoint tetap sama persis (satu
+  batch query `IN (...)` sebelum Firecrawl, lihat `get_processed_codes()`),
+  hanya menghapus fungsi yang sudah tidak terpakai beserta dokumentasi yang
+  menyesatkan. Diverifikasi dengan `python3 -m py_compile` dan pencarian
+  referensi (`grep`) untuk memastikan tidak ada pemanggil `is_processed()`
+  yang tertinggal.
+
 ## 2026-09-12 (lanjutan) — Restrukturisasi dokumentasi
 
 `ROADMAP.md` sebelumnya berisi campuran overview project, desain teknis,
@@ -79,6 +180,11 @@ anti-rescrape).
   seluruh database ke memory hanya untuk checkpoint" karena cakupan query
   tetap dibatasi pada file-file dalam satu batch scan, bukan seluruh isi
   tabel `subtitles`.
+
+  > **Catatan (2026-09-13):** `is_processed()` yang disebut "tetap
+  > dipertahankan untuk kompatibilitas" di atas ternyata sudah tidak
+  > dipanggil dari mana pun setelah perbaikan ini — lihat entri
+  > 2026-09-13 di atas untuk penghapusannya.
 - **`subtitle_metadata.py` — exception handling belum menangkap
   `sqlite3.Error`.** Blok exception di `main()` sebelumnya hanya menangkap
   `FileNotFoundError`, `NotADirectoryError`, `PermissionError`, `ValueError`,
