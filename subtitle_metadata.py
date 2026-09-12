@@ -32,6 +32,11 @@ NOT_FOUND_KEYWORDS = [
     "doesn't exist",
 ]
 
+# Batas aman parameter per query SQLite (default SQLITE_MAX_VARIABLE_NUMBER
+# lama adalah 999). Dipakai untuk memecah query IN (...) saat mengecek
+# banyak nama_file sekaligus, agar tidak melebihi batas tersebut.
+SQLITE_MAX_VARIABLES = 900
+
 
 def log(message: str, level: str = "INFO") -> None:
     print(f"[{level}] {message}", flush=True)
@@ -385,6 +390,19 @@ def initialize_database(connection: sqlite3.Connection) -> None:
         )
         """
     )
+
+    # PERBAIKAN BUG #2: index ini sudah dibuat oleh migrate_json_to_sqlite.py
+    # tetapi sebelumnya tidak dibuat di sini. Jika subtitle_metadata.py
+    # dijalankan pertama kali pada database baru (tanpa migrasi lebih dulu),
+    # is_processed()/get_processed_codes() akan melakukan full table scan
+    # yang makin lambat seiring data bertambah. CREATE INDEX IF NOT EXISTS
+    # aman dijalankan berkali-kali dan tidak mengubah data existing.
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_subtitles_nama_file ON subtitles(nama_file)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_subtitles_relative_path ON subtitles(relative_path)"
+    )
     connection.commit()
 
 
@@ -401,12 +419,55 @@ def open_database(database_file: Path) -> sqlite3.Connection:
 
 
 def is_processed(connection: sqlite3.Connection, nama_file: str) -> bool:
-    """Mengecek checkpoint SQLite sebelum Firecrawl."""
+    """Mengecek checkpoint SQLite sebelum Firecrawl untuk SATU nama_file.
+
+    Dipertahankan sebagai fungsi terpisah (dipakai saat memproses satu file
+    dalam process_files()). Untuk mengecek banyak nama_file sekaligus,
+    gunakan get_processed_codes() agar tidak melakukan query berulang untuk
+    kumpulan file yang sama.
+    """
     row = connection.execute(
         "SELECT 1 FROM subtitles WHERE nama_file = ? LIMIT 1",
         (nama_file,),
     ).fetchone()
     return row is not None
+
+
+def get_processed_codes(connection: sqlite3.Connection, codes: list[str]) -> set[str]:
+    """Mengecek banyak nama_file sekaligus dalam satu (atau beberapa) query.
+
+    PERBAIKAN BUG #3: sebelumnya main() memanggil is_processed() satu per
+    satu untuk menghitung existing_count, lalu process_files() memanggil
+    is_processed() lagi untuk file yang sama -> setiap file di-query 2x ke
+    SQLite. Fungsi ini mengambil status "sudah diproses" untuk seluruh file
+    yang sedang di-scan dalam satu batch query, lalu hasilnya (set nama_file)
+    dipakai ulang baik untuk log info di main() maupun untuk keputusan
+    skip di process_files().
+
+    Ini TIDAK melanggar aturan "jangan membaca seluruh database ke memory
+    hanya untuk checkpoint" (lihat ROADMAP bagian 10), karena query dibatasi
+    hanya pada nama_file dari file yang sedang di-scan di folder target
+    (jumlahnya terbatas), bukan seluruh isi tabel subtitles.
+
+    Query dipecah per SQLITE_MAX_VARIABLES agar tidak melebihi batas jumlah
+    parameter pada klausa IN (...) di SQLite.
+    """
+    if not codes:
+        return set()
+
+    processed: set[str] = set()
+    unique_codes = list(dict.fromkeys(codes))  # dedup, pertahankan urutan
+
+    for start in range(0, len(unique_codes), SQLITE_MAX_VARIABLES):
+        chunk = unique_codes[start:start + SQLITE_MAX_VARIABLES]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = connection.execute(
+            f"SELECT nama_file FROM subtitles WHERE nama_file IN ({placeholders})",
+            chunk,
+        ).fetchall()
+        processed.update(row["nama_file"] for row in rows)
+
+    return processed
 
 
 def insert_result(
@@ -455,12 +516,19 @@ def process_files(
     api_key: str,
     rate_limiter: RateLimiter,
     sources: list[str],
+    already_processed: set[str],
 ) -> tuple[int, int, int]:
     """Memproses file satu per satu dengan SQLite sebagai checkpoint utama.
 
     Database selalu diperiksa sebelum Firecrawl. Record baru langsung di-commit
     setelah scraping sukses sehingga hasil yang sudah tersimpan tetap aman jika
     proses berhenti di tengah jalan.
+
+    `already_processed` adalah set nama_file yang sudah diketahui ada di
+    SQLite untuk batch file yang sedang di-scan (lihat get_processed_codes()).
+    Dipakai untuk skip check tanpa query ulang ke database per file
+    (PERBAIKAN BUG #3), sekaligus tetap mempertahankan aturan "database
+    check harus terjadi sebelum Firecrawl" dari ROADMAP.
     """
 
     total = len(files)
@@ -469,7 +537,7 @@ def process_files(
     for index, file in enumerate(files, start=1):
         code = get_file_code(file)
 
-        if is_processed(connection, code):
+        if code in already_processed:
             log(f"[{index}/{total}] {code} sudah ada di SQLite. SKIP.")
             skipped_count += 1
             continue
@@ -504,6 +572,11 @@ def process_files(
                 failed_count += 1
                 log(str(exc), "ERROR")
                 continue
+
+            # Tandai kode ini sebagai sudah diproses untuk sisa batch,
+            # berjaga-jaga jika ada nama file duplikat dalam daftar yang
+            # sama (mis. akibat penanganan file tersembunyi/-a).
+            already_processed.add(code)
 
             success_count += 1
             log(
@@ -581,14 +654,22 @@ def main() -> int:
             log(f"SQLite checkpoint aktif: {args.db}")
             log(f"Record yang sudah tersimpan: {database_count}")
 
-            existing_count = sum(
-                1 for file in files if is_processed(connection, get_file_code(file))
-            )
+            # PERBAIKAN BUG #3: satu batch query untuk seluruh file yang
+            # sedang di-scan, dipakai ulang untuk log info di bawah ini
+            # DAN untuk skip logic di process_files() (tidak ada lagi
+            # query is_processed() ganda per file).
+            codes_in_scan = [get_file_code(file) for file in files]
+            already_processed = get_processed_codes(connection, codes_in_scan)
+
+            existing_count = len(already_processed)
             log(f"File target yang sudah ada di SQLite: {existing_count}")
             log(f"File yang perlu diperiksa: {len(files) - existing_count}")
 
             rate_limiter = RateLimiter(MIN_SECONDS_PER_REQUEST)
-            process_files(files, connection, api_key, rate_limiter, sources)
+            process_files(
+                files, connection, api_key, rate_limiter, sources,
+                already_processed,
+            )
             final_count = get_database_count(connection)
         finally:
             connection.close()
@@ -611,7 +692,14 @@ def main() -> int:
         PermissionError,
         ValueError,
         OSError,
+        sqlite3.Error,
     ) as exc:
+        # PERBAIKAN BUG #4: sqlite3.Error ditambahkan ke daftar exception
+        # yang ditangani di sini. Sebelumnya, error SQLite yang muncul
+        # setelah open_database() berhasil (mis. "database is locked" saat
+        # commit) tidak tertangkap oleh blok ini dan akan crash dengan
+        # traceback mentah, bukan pesan [ERROR] yang rapi seperti error
+        # lain di aplikasi ini.
         log(str(exc), "ERROR")
         return 1
 
