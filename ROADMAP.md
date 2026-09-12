@@ -310,6 +310,21 @@ Field yang dapat dipertimbangkan pada tahap berikutnya:
 - checksum/hash file
 - waktu update terakhir.
 
+### Index aktif
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_subtitles_nama_file
+ON subtitles(nama_file);
+
+CREATE INDEX IF NOT EXISTS idx_subtitles_relative_path
+ON subtitles(relative_path);
+```
+
+Index ini dibuat oleh `migrate_json_to_sqlite.py` maupun oleh
+`subtitle_metadata.py` (`initialize_database()`), sehingga database baru yang
+dibuat langsung lewat `subtitle_metadata.py` tanpa migrasi lebih dulu tetap
+memiliki index yang sama.
+
 ---
 
 ## 8. Identitas File
@@ -403,6 +418,13 @@ Check database
 Jangan membaca seluruh database ke memory hanya untuk melakukan checkpoint.
 Gunakan query berdasarkan identitas file.
 
+Sejak perbaikan 2026-09-12, pengecekan checkpoint untuk satu batch scan
+dilakukan lewat satu query `IN (...)` (dipecah otomatis sesuai batas variabel
+SQLite) atas nama_file dari file yang sedang di-scan di folder target —
+bukan membaca seluruh tabel `subtitles`. Ini tetap sejalan dengan aturan di
+atas karena cakupan query dibatasi pada jumlah file dalam satu run, bukan
+seluruh isi database.
+
 ---
 
 ## 11. Processing Status
@@ -485,6 +507,14 @@ Jika timestamp sama:
 2. nama file sebagai tie-breaker bila diperlukan.
 
 Nilai internal sorting tidak perlu disimpan sebagai field publik.
+
+**Catatan (2026-09-12):** field `file_created_at` disimpan sebagai TEXT
+`DD-MM-YYYY HH:MM:SS`, sehingga `ORDER BY` langsung pada kolom ini di SQL
+akan mengurutkan berdasarkan karakter pertama (hari), bukan secara
+kronologis. Query yang butuh urutan kronologis harus menyusun ulang
+komponennya ke format `YYYY-MM-DD HH:MM:SS` terlebih dahulu memakai
+`substr()` (lihat `sqlite_database_cheatsheet.md` bagian 10 dan
+`export_pending_subtitles.py`), bukan mengurutkan string apa adanya.
 
 ---
 
@@ -636,6 +666,11 @@ Jika `001` dan `002` sudah ada dan `003` baru:
 003 → Firecrawl
 ```
 
+**Status (2026-09-12):** diuji ulang setelah perbaikan batch checkpoint
+query (lihat Change Log) — hasil tetap sesuai ekspektasi: `001` dan `002`
+di-skip tanpa memanggil Firecrawl, hanya `003` yang diproses dan
+disimpan, tidak ada duplikat.
+
 ### Test 4 — recursive
 
 ```text
@@ -775,7 +810,8 @@ sehingga P1 selesai.
 
 - [ ] Scrape status.
 - [ ] Error tracking.
-- [ ] Index database yang tepat.
+- [x] Index database yang tepat (`nama_file`, `relative_path` — dibuat konsisten
+      di `migrate_json_to_sqlite.py` maupun `subtitle_metadata.py`).
 - [ ] Handling file dipindah/rename.
 - [ ] Handling file berubah.
 - [ ] Recovery ketika program berhenti di tengah proses.
@@ -858,6 +894,9 @@ Untuk P1 migrasi database, tambahan kriteria:
 | `.env.example` | Belum dibuat |
 | `.gitignore` | Belum dibuat |
 | Export pending subtitle ke JSON | Selesai dan sudah diuji |
+| Index SQLite (`nama_file`, `relative_path`) | Konsisten di migrator & `subtitle_metadata.py` |
+| Sorting `export_pending_subtitles.py` | Diperbaiki agar kronologis, bukan string biasa |
+| Batch checkpoint query di `subtitle_metadata.py` | Diperbaiki (satu query per batch, bukan per file) |
 
 ### Next Step yang disarankan
 
@@ -893,6 +932,72 @@ Untuk P1 migrasi database, tambahan kriteria:
 ---
 
 # 24. Change Log
+
+## 2026-09-12 — Perbaikan bug hasil code review
+
+Empat bug/optimisasi ditemukan lewat review menyeluruh terhadap seluruh
+skrip di repo, kemudian diperbaiki satu per satu dengan prinsip perubahan
+sekecil mungkin (tidak mengubah schema, source, CLI, maupun behavior
+anti-rescrape).
+
+- **`export_pending_subtitles.py` — bug sorting.** Query ekspor sebelumnya
+  melakukan `ORDER BY file_created_at ASC` langsung pada kolom TEXT berformat
+  `DD-MM-YYYY HH:MM:SS`, sehingga urutan yang dihasilkan salah secara
+  kronologis (mengurutkan berdasarkan karakter hari, bukan tahun/bulan/hari).
+  Diperbaiki dengan menyusun ulang komponen tanggal ke format
+  `YYYY-MM-DD HH:MM:SS` memakai `substr()` sebelum diurutkan, mengikuti pola
+  yang sudah didokumentasikan di `sqlite_database_cheatsheet.md` bagian 10.
+  Baris dengan `file_created_at` kosong/NULL kini konsisten diletakkan di
+  akhir hasil, bukan tercampur di awal. Diverifikasi dengan unit test
+  menggunakan data yang sengaja dibuat rawan salah urut (15-12-2025 vs
+  01-01-2026); hasil setelah perbaikan sudah benar secara kronologis.
+- **`subtitle_metadata.py` — index tidak dibuat pada database baru.**
+  `initialize_database()` sebelumnya hanya membuat tabel `subtitles` tanpa
+  index, padahal `migrate_json_to_sqlite.py` sudah membuat
+  `idx_subtitles_nama_file` dan `idx_subtitles_relative_path`. Jika
+  `subtitle_metadata.py` dijalankan pertama kali pada database baru tanpa
+  migrasi lebih dulu, pengecekan checkpoint akan melakukan full table scan
+  yang makin lambat seiring data bertambah. Ditambahkan
+  `CREATE INDEX IF NOT EXISTS` untuk kedua index tersebut di
+  `initialize_database()`, sehingga database baru maupun hasil migrasi
+  sekarang selalu punya index yang sama. Tidak mengubah data existing.
+- **`subtitle_metadata.py` — query checkpoint dilakukan dua kali per file.**
+  Sebelumnya `main()` memanggil `is_processed()` satu per satu untuk
+  menghitung `existing_count` (hanya untuk log info), lalu `process_files()`
+  memanggil `is_processed()` lagi untuk file yang sama saat memutuskan
+  skip/proses — total dua query SQLite per file. Ditambahkan fungsi
+  `get_processed_codes()` yang mengecek seluruh nama_file dari file yang
+  sedang di-scan dalam satu (atau beberapa, dipecah otomatis per batas
+  variabel SQLite) query `IN (...)`. Hasilnya berupa satu `set` yang dipakai
+  ulang baik untuk log info maupun untuk skip logic di `process_files()`.
+  Fungsi `is_processed()` individual tetap dipertahankan tanpa perubahan
+  untuk kompatibilitas. Perbaikan ini tidak melanggar aturan "jangan membaca
+  seluruh database ke memory hanya untuk checkpoint" karena cakupan query
+  tetap dibatasi pada file-file dalam satu batch scan, bukan seluruh isi
+  tabel `subtitles`.
+- **`subtitle_metadata.py` — exception handling belum menangkap
+  `sqlite3.Error`.** Blok exception di `main()` sebelumnya hanya menangkap
+  `FileNotFoundError`, `NotADirectoryError`, `PermissionError`, `ValueError`,
+  dan `OSError`. Error SQLite yang muncul di runtime setelah database
+  berhasil dibuka (misalnya "database is locked" saat commit) tidak
+  tertangkap dan akan crash dengan traceback mentah. Ditambahkan
+  `sqlite3.Error` ke daftar exception yang ditangani, sehingga error jenis
+  ini sekarang tampil sebagai pesan `[ERROR]` yang konsisten dengan error
+  lain di aplikasi.
+
+Verifikasi yang dilakukan sebelum perubahan dianggap selesai:
+- syntax check (`python3 -m py_compile`) pada kedua file yang diubah;
+- unit test untuk `get_processed_codes()` (batch check akurat, list kosong,
+  chunking untuk >900 kode) dan untuk query sorting baru di
+  `export_pending_subtitles.py`;
+- test end-to-end skenario "campuran" dari bagian 19 (Test 3): file existing
+  (`001`, `002`) tetap ter-skip tanpa memanggil Firecrawl, file baru (`003`)
+  diproses dan tersimpan, total record di database bertambah sesuai
+  ekspektasi tanpa duplikat.
+
+Tidak ada perubahan pada schema tabel `subtitles`, argumen CLI, daftar
+source scraping, retry/rate limiting Firecrawl, maupun format data existing.
+`results.json` dan `subtitles.db` tidak disentuh/dihapus oleh perbaikan ini.
 
 ## 2026-09-06
 
