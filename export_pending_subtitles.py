@@ -36,6 +36,22 @@ def validate_database(db_file: Path) -> None:
 
 
 def export_pending_subtitles(db_file: Path, output_file: Path) -> int:
+    # PERBAIKAN: file_created_at disimpan sebagai TEXT dengan format
+    # 'DD-MM-YYYY HH:MM:SS'. ORDER BY langsung pada string ini akan
+    # mengurutkan berdasarkan karakter pertama (hari), bukan secara
+    # kronologis (tahun -> bulan -> hari -> jam), sehingga hasilnya
+    # bisa salah urutan (mis. '01-01-2026' muncul sebelum
+    # '15-12-2025' meskipun 2025 lebih lama).
+    #
+    # Susun ulang komponennya sementara menjadi 'YYYY-MM-DD HH:MM:SS'
+    # (dapat dibandingkan secara alfabetis dengan benar) memakai
+    # substr(), sama seperti pola yang didokumentasikan di
+    # sqlite_database_cheatsheet.md bagian 10. Ini hanya mengubah
+    # urutan tampilan pada saat query, tidak mengubah nilai yang
+    # tersimpan di SQLite.
+    #
+    # Baris dengan file_created_at kosong/NULL diletakkan di akhir
+    # (bukan tercampur di awal akibat string kosong "" < digit).
     query = """
         SELECT
             id,
@@ -51,7 +67,14 @@ def export_pending_subtitles(db_file: Path, output_file: Path) -> int:
         FROM subtitles
         WHERE downloaded = 0
         ORDER BY
-            file_created_at ASC,
+            CASE
+                WHEN file_created_at IS NULL OR file_created_at = '' THEN 1
+                ELSE 0
+            END ASC,
+            substr(file_created_at, 7, 4) || '-' ||
+            substr(file_created_at, 4, 2) || '-' ||
+            substr(file_created_at, 1, 2) || ' ' ||
+            substr(file_created_at, 12, 8) ASC,
             relative_path ASC,
             nama_file ASC,
             id ASC
