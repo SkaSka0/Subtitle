@@ -221,13 +221,6 @@ Untuk P1 migrasi database, tambahan kriteria:
 | Batch checkpoint query di `subtitle_metadata.py` | Diperbaiki (satu query per batch, bukan per file) |
 | Dokumentasi project | Dipecah: README, ROADMAP, ARCHITECTURE, CONTRIBUTING, CHANGELOG |
 
-> **Catatan:** baris `.env.example`/`.gitignore` di tabel ini sengaja
-> dipertahankan sama seperti ROADMAP versi sebelumnya ("Belum dibuat"),
-> meskipun kedua file tersebut sudah ada di repo saat ini. Ini kemungkinan
-> snapshot yang belum diperbarui di dokumen asli — perlu dikonfirmasi dan
-> diperbaiki oleh maintainer project, bukan diubah diam-diam saat
-> restrukturisasi dokumentasi.
-
 ### Next Step yang Disarankan
 
 **Jangan melakukan refactor besar pada `subtitle_metadata.py`.**
