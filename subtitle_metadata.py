@@ -203,6 +203,134 @@ def get_file_code(file: Path) -> str:
     return file.stem
 
 
+def _send_scrape_request(target_url: str, headers: dict) -> "requests.Response | None":
+    """Satu tanggung jawab: mengirim satu request scrape ke Firecrawl.
+
+    Mengembalikan objek response apa pun status code-nya jika request
+    berhasil terkirim, atau None jika request gagal total (timeout,
+    connection error, atau exception tak terduga lain) -- dengan log error
+    yang sesuai untuk tiap jenis kegagalan, identik dengan versi sebelum
+    refactor.
+    """
+    payload = {"url": target_url, "formats": ["markdown"]}
+    try:
+        response = requests.post(
+            FIRECRAWL_API_URL, headers=headers, json=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
+        log(f"Status API Firecrawl: {response.status_code}")
+        return response
+    except requests.Timeout:
+        log(
+            "Request ke Firecrawl timeout. Lanjut ke sumber berikutnya...",
+            "ERROR",
+        )
+        return None
+    except requests.ConnectionError as exc:
+        log(
+            f"Gagal terhubung ke Firecrawl: {exc}. Lanjut ke sumber berikutnya...",
+            "ERROR",
+        )
+        return None
+    except requests.RequestException as exc:
+        log(
+            f"Request ke Firecrawl gagal: {exc}. Lanjut ke sumber berikutnya...",
+            "ERROR",
+        )
+        return None
+    except Exception as exc:
+        log(
+            f"Terjadi error tidak terduga: {exc}. Lanjut ke sumber berikutnya...",
+            "ERROR",
+        )
+        return None
+
+
+def _compute_retry_wait(response: "requests.Response", retry_count: int) -> float:
+    """Satu tanggung jawab: menghitung waktu tunggu retry setelah HTTP 429.
+
+    Mengikuti header Retry-After jika tersedia dan valid, jika tidak
+    (tidak ada header atau tidak bisa di-parse) pakai exponential backoff
+    berbasis retry_count.
+    """
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return float(retry_after)
+        except ValueError:
+            return 2 ** retry_count
+    return 2 ** retry_count
+
+
+def _parse_scrape_response(response: "requests.Response") -> "dict | None":
+    """Satu tanggung jawab: mem-parse body response Firecrawl sebagai JSON.
+
+    Mengembalikan dict hasil parse, atau None jika body bukan JSON yang
+    valid (dengan log error).
+    """
+    try:
+        return response.json()
+    except ValueError:
+        log("Response Firecrawl bukan JSON yang valid.", "ERROR")
+        return None
+
+
+def _target_status_failed(target_status) -> bool:
+    """Satu tanggung jawab: menilai apakah status HTTP website target
+    (dari metadata Firecrawl) menunjukkan kegagalan.
+
+    Mengembalikan True jika target_status dapat di-parse sebagai integer
+    dan nilainya bukan 200 (artinya scraping untuk source ini harus
+    dihentikan oleh pemanggil). Jika target_status tidak dapat di-parse,
+    dianggap BUKAN kegagalan (hanya dicatat sebagai warning) -- ini
+    mempertahankan behavior asli, bukan behavior baru.
+    """
+    try:
+        return int(target_status) != 200
+    except (TypeError, ValueError):
+        log(f"Status website tidak valid: {target_status}", "ERROR")
+        return False
+
+
+def _extract_valid_title(metadata: dict, markdown: str) -> "str | None":
+    """Satu tanggung jawab: mengambil title yang valid dari hasil scrape.
+
+    Mencoba metadata (ogTitle/og:title/title), fallback ke heading pertama
+    markdown. Title yang ditemukan divalidasi terhadap NOT_FOUND_KEYWORDS
+    (baik dari title maupun isi markdown). Mengembalikan title yang sudah
+    di-decode HTML dan di-strip, atau None jika title tidak ditemukan atau
+    terdeteksi sebagai halaman 404 (dengan log error yang sesuai untuk
+    tiap kasus).
+    """
+    scraped_title = (
+        metadata.get("ogTitle")
+        or metadata.get("og:title")
+        or metadata.get("title")
+    )
+    if not scraped_title and markdown:
+        scraped_title = extract_markdown_title(markdown)
+
+    if not scraped_title:
+        log(
+            "Metadata title tidak ditemukan. Lanjut ke sumber berikutnya...",
+            "ERROR",
+        )
+        return None
+
+    title_lower = scraped_title.lower()
+    markdown_lower = markdown.lower()
+
+    if any(keyword in title_lower for keyword in NOT_FOUND_KEYWORDS):
+        log("Halaman 404 terdeteksi dari judul.", "ERROR")
+        return None
+
+    if any(keyword in markdown_lower for keyword in NOT_FOUND_KEYWORDS):
+        log("Halaman 404 terdeteksi dari isi halaman.", "ERROR")
+        return None
+
+    return html.unescape(scraped_title).strip()
+
+
 def scrape_title(
     code: str,
     api_key: str,
@@ -211,7 +339,16 @@ def scrape_title(
 ) -> str:
     """Mencoba tiap source satu per satu lewat Firecrawl.
     Retry hingga MAX_RETRIES pada HTTP 429, mengikuti Retry-After
-    jika tersedia, jika tidak pakai exponential backoff."""
+    jika tersedia, jika tidak pakai exponential backoff.
+
+    Fungsi ini murni orkestrasi alur (loop source -> loop retry -> request
+    -> parse -> ekstraksi title). Setiap langkah teknis didelegasikan ke
+    helper dengan satu tanggung jawab masing-masing: _send_scrape_request(),
+    _compute_retry_wait(), _parse_scrape_response(), _target_status_failed(),
+    dan _extract_valid_title() (lihat CONTRIBUTING.md bagian "Prinsip Desain
+    Fungsi"). Refactor ini murni ekstraksi -- urutan pengecekan, pesan log,
+    dan keputusan break/continue/return identik dengan versi sebelumnya.
+    """
 
     lower_code = code.lower()
     headers = {
@@ -227,146 +364,78 @@ def scrape_title(
             # Throttle sebelum setiap request (termasuk retry & pindah source).
             rate_limiter.wait()
             log(f"⏳ Meminta bantuan Firecrawl untuk menembus: {target_url}")
-            payload = {"url": target_url, "formats": ["markdown"]}
 
-            try:
-                response = requests.post(
-                    FIRECRAWL_API_URL, headers=headers, json=payload,
-                    timeout=REQUEST_TIMEOUT,
-                )
-                log(f"Status API Firecrawl: {response.status_code}")
+            response = _send_scrape_request(target_url, headers)
+            if response is None:
+                # Request gagal total (timeout/connection/error lain).
+                # Log sudah dilakukan di dalam _send_scrape_request().
+                break
 
-                if response.status_code == 429:
-                    if retry_count >= MAX_RETRIES:
-                        log(
-                            f"HTTP 429 masih terjadi setelah {MAX_RETRIES} kali retry. "
-                            "Lanjut ke sumber berikutnya...",
-                            "ERROR",
-                        )
-                        break
-
-                    retry_count += 1
-                    retry_after = response.headers.get("Retry-After")
-                    if retry_after:
-                        try:
-                            wait_time = float(retry_after)
-                        except ValueError:
-                            wait_time = 2 ** retry_count
-                    else:
-                        wait_time = 2 ** retry_count
-
+            if response.status_code == 429:
+                if retry_count >= MAX_RETRIES:
                     log(
-                        f"Rate limit Firecrawl terkena. Retry {retry_count}/{MAX_RETRIES}. "
-                        f"Menunggu {wait_time:g} detik...",
-                        "ERROR",
-                    )
-                    time.sleep(wait_time)
-
-                    # Reset jam throttle supaya wait() berikutnya tidak
-                    # menambah delay ekstra di atas backoff ini.
-                    rate_limiter.last_request_time = time.time()
-                    continue
-
-                if response.status_code != 200:
-                    log(
-                        f"API Firecrawl gagal ({response.status_code}). "
+                        f"HTTP 429 masih terjadi setelah {MAX_RETRIES} kali retry. "
                         "Lanjut ke sumber berikutnya...",
                         "ERROR",
                     )
                     break
 
-                try:
-                    json_data = response.json()
-                except ValueError:
-                    log("Response Firecrawl bukan JSON yang valid.", "ERROR")
-                    break
-
-                data = json_data.get("data", {})
-                metadata = data.get("metadata", {})
-                markdown = data.get("markdown", "")
-                error = data.get("error")
-
-                if error:
-                    log(f"Firecrawl Error: {error}", "ERROR")
-                    break
-
-                target_status = (
-                    metadata.get("statusCode")
-                    or metadata.get("status_code")
-                    or metadata.get("status")
+                retry_count += 1
+                wait_time = _compute_retry_wait(response, retry_count)
+                log(
+                    f"Rate limit Firecrawl terkena. Retry {retry_count}/{MAX_RETRIES}. "
+                    f"Menunggu {wait_time:g} detik...",
+                    "ERROR",
                 )
-                if target_status:
-                    log(f"Status Website Target: {target_status}")
-                    try:
-                        if int(target_status) != 200:
-                            log(
-                                f"Website mengembalikan HTTP {target_status}. "
-                                "Lanjut ke sumber berikutnya...",
-                                "ERROR",
-                            )
-                            break
-                    except (TypeError, ValueError):
-                        log(f"Status website tidak valid: {target_status}", "ERROR")
+                time.sleep(wait_time)
 
-                scraped_title = (
-                    metadata.get("ogTitle")
-                    or metadata.get("og:title")
-                    or metadata.get("title")
+                # Reset jam throttle supaya wait() berikutnya tidak
+                # menambah delay ekstra di atas backoff ini.
+                rate_limiter.last_request_time = time.time()
+                continue
+
+            if response.status_code != 200:
+                log(
+                    f"API Firecrawl gagal ({response.status_code}). "
+                    "Lanjut ke sumber berikutnya...",
+                    "ERROR",
                 )
-                if not scraped_title and markdown:
-                    scraped_title = extract_markdown_title(markdown)
+                break
 
-                if not scraped_title:
+            json_data = _parse_scrape_response(response)
+            if json_data is None:
+                break
+
+            data = json_data.get("data", {})
+            metadata = data.get("metadata", {})
+            markdown = data.get("markdown", "")
+            error = data.get("error")
+
+            if error:
+                log(f"Firecrawl Error: {error}", "ERROR")
+                break
+
+            target_status = (
+                metadata.get("statusCode")
+                or metadata.get("status_code")
+                or metadata.get("status")
+            )
+            if target_status:
+                log(f"Status Website Target: {target_status}")
+                if _target_status_failed(target_status):
                     log(
-                        "Metadata title tidak ditemukan. "
+                        f"Website mengembalikan HTTP {target_status}. "
                         "Lanjut ke sumber berikutnya...",
                         "ERROR",
                     )
                     break
 
-                title_lower = scraped_title.lower()
-                markdown_lower = markdown.lower()
-
-                if any(keyword in title_lower for keyword in NOT_FOUND_KEYWORDS):
-                    log("Halaman 404 terdeteksi dari judul.", "ERROR")
-                    break
-
-                if any(keyword in markdown_lower for keyword in NOT_FOUND_KEYWORDS):
-                    log("Halaman 404 terdeteksi dari isi halaman.", "ERROR")
-                    break
-
-                decoded_title = html.unescape(scraped_title).strip()
-                log(f"Judul ditemukan: {decoded_title}", "SUCCESS")
-                return decoded_title
-
-            except requests.Timeout:
-                log(
-                    "Request ke Firecrawl timeout. "
-                    "Lanjut ke sumber berikutnya...",
-                    "ERROR",
-                )
+            decoded_title = _extract_valid_title(metadata, markdown)
+            if decoded_title is None:
                 break
-            except requests.ConnectionError as exc:
-                log(
-                    f"Gagal terhubung ke Firecrawl: {exc}. "
-                    "Lanjut ke sumber berikutnya...",
-                    "ERROR",
-                )
-                break
-            except requests.RequestException as exc:
-                log(
-                    f"Request ke Firecrawl gagal: {exc}. "
-                    "Lanjut ke sumber berikutnya...",
-                    "ERROR",
-                )
-                break
-            except Exception as exc:
-                log(
-                    f"Terjadi error tidak terduga: {exc}. "
-                    "Lanjut ke sumber berikutnya...",
-                    "ERROR",
-                )
-                break
+
+            log(f"Judul ditemukan: {decoded_title}", "SUCCESS")
+            return decoded_title
 
     log(f"Gagal menemukan judul untuk kode '{code}' dari semua sumber.", "ERROR")
     return ""
@@ -394,8 +463,8 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     # PERBAIKAN BUG #2: index ini sudah dibuat oleh migrate_json_to_sqlite.py
     # tetapi sebelumnya tidak dibuat di sini. Jika subtitle_metadata.py
     # dijalankan pertama kali pada database baru (tanpa migrasi lebih dulu),
-    # is_processed()/get_processed_codes() akan melakukan full table scan
-    # yang makin lambat seiring data bertambah. CREATE INDEX IF NOT EXISTS
+    # get_processed_codes() akan melakukan full table scan yang makin lambat
+    # seiring data bertambah. CREATE INDEX IF NOT EXISTS
     # aman dijalankan berkali-kali dan tidak mengubah data existing.
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_subtitles_nama_file ON subtitles(nama_file)"
@@ -418,28 +487,13 @@ def open_database(database_file: Path) -> sqlite3.Connection:
         raise OSError(f"Gagal membuka database '{database_file}': {exc}") from exc
 
 
-def is_processed(connection: sqlite3.Connection, nama_file: str) -> bool:
-    """Mengecek checkpoint SQLite sebelum Firecrawl untuk SATU nama_file.
-
-    Dipertahankan sebagai fungsi terpisah (dipakai saat memproses satu file
-    dalam process_files()). Untuk mengecek banyak nama_file sekaligus,
-    gunakan get_processed_codes() agar tidak melakukan query berulang untuk
-    kumpulan file yang sama.
-    """
-    row = connection.execute(
-        "SELECT 1 FROM subtitles WHERE nama_file = ? LIMIT 1",
-        (nama_file,),
-    ).fetchone()
-    return row is not None
-
-
 def get_processed_codes(connection: sqlite3.Connection, codes: list[str]) -> set[str]:
     """Mengecek banyak nama_file sekaligus dalam satu (atau beberapa) query.
 
-    PERBAIKAN BUG #3: sebelumnya main() memanggil is_processed() satu per
-    satu untuk menghitung existing_count, lalu process_files() memanggil
-    is_processed() lagi untuk file yang sama -> setiap file di-query 2x ke
-    SQLite. Fungsi ini mengambil status "sudah diproses" untuk seluruh file
+    PERBAIKAN BUG #3: sebelumnya main() memanggil pengecekan checkpoint satu
+    per satu untuk menghitung existing_count, lalu process_files() memanggil
+    pengecekan checkpoint lagi untuk file yang sama -> setiap file di-query 2x
+    ke SQLite. Fungsi ini mengambil status "sudah diproses" untuk seluruh file
     yang sedang di-scan dalam satu batch query, lalu hasilnya (set nama_file)
     dipakai ulang baik untuk log info di main() maupun untuk keputusan
     skip di process_files().
@@ -657,7 +711,7 @@ def main() -> int:
             # PERBAIKAN BUG #3: satu batch query untuk seluruh file yang
             # sedang di-scan, dipakai ulang untuk log info di bawah ini
             # DAN untuk skip logic di process_files() (tidak ada lagi
-            # query is_processed() ganda per file).
+            # query pengecekan checkpoint ganda per file).
             codes_in_scan = [get_file_code(file) for file in files]
             already_processed = get_processed_codes(connection, codes_in_scan)
 
