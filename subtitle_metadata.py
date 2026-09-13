@@ -102,7 +102,7 @@ class RateLimiter:
     def wait(self) -> None:
         remaining = self.min_interval - (time.time() - self.last_request_time)
         if remaining > 0:
-            log(f"Menunggu {remaining:.1f} detik (throttle rate limit)...")
+            log(f"Waiting {remaining:.1f} seconds (rate limit throttle)...")
             time.sleep(remaining)
         self.last_request_time = time.time()
 
@@ -150,16 +150,16 @@ def parse_arguments() -> argparse.Namespace:
     args = parser.parse_args()
 
     if args.directory is not None and args.directory_option is not None:
-        parser.error("Tentukan directory sekali saja, bukan positional dan --directory sekaligus.")
+        parser.error("Specify directory only once, not both positional and --directory.")
 
     args.directory = args.directory_option or args.directory
     if args.directory is None:
-        parser.error("directory wajib diisi (contoh: python subtitle_metadata.py -d ~/subtitle)")
+        parser.error("directory is required (example: python subtitle_metadata.py -d ~/subtitle)")
 
     if args.output is not None:
         log(
-            "Option -o/--output sudah tidak digunakan sebagai checkpoint. "
-            "SQLite tetap digunakan sebagai storage utama.",
+            "Option -o/--output is no longer used as a checkpoint. "
+            "SQLite remains the main storage.",
             "WARNING",
         )
 
@@ -168,9 +168,9 @@ def parse_arguments() -> argparse.Namespace:
 
 def validate_directory(directory: Path) -> None:
     if not directory.exists():
-        raise FileNotFoundError(f"Folder tidak ditemukan: {directory}")
+        raise FileNotFoundError(f"Folder not found: {directory}")
     if not directory.is_dir():
-        raise NotADirectoryError(f"Path bukan sebuah folder: {directory}")
+        raise NotADirectoryError(f"Path is not a folder: {directory}")
 
 
 def get_files(directory: Path, include_hidden: bool = False) -> list[Path]:
@@ -186,9 +186,9 @@ def get_files(directory: Path, include_hidden: bool = False) -> list[Path]:
                 continue
             files.append(entry)
     except PermissionError as exc:
-        raise PermissionError(f"Tidak memiliki izin membaca folder: {directory}") from exc
+        raise PermissionError(f"No permission to read folder: {directory}") from exc
     except OSError as exc:
-        raise OSError(f"Gagal membaca folder '{directory}': {exc}") from exc
+        raise OSError(f"Failed to read folder '{directory}': {exc}") from exc
 
     # Urutan awal tetap berdasarkan nama file. Sorting database dilakukan
     # terpisah jika dibutuhkan oleh query/reporting.
@@ -218,29 +218,29 @@ def _send_scrape_request(target_url: str, headers: dict) -> "requests.Response |
             FIRECRAWL_API_URL, headers=headers, json=payload,
             timeout=REQUEST_TIMEOUT,
         )
-        log(f"Status API Firecrawl: {response.status_code}")
+        log(f"Firecrawl API status: {response.status_code}")
         return response
     except requests.Timeout:
         log(
-            "Request ke Firecrawl timeout. Lanjut ke sumber berikutnya...",
+            "Request to Firecrawl timed out. Moving to next source...",
             "ERROR",
         )
         return None
     except requests.ConnectionError as exc:
         log(
-            f"Gagal terhubung ke Firecrawl: {exc}. Lanjut ke sumber berikutnya...",
+            f"Failed to connect to Firecrawl: {exc}. Moving to next source...",
             "ERROR",
         )
         return None
     except requests.RequestException as exc:
         log(
-            f"Request ke Firecrawl gagal: {exc}. Lanjut ke sumber berikutnya...",
+            f"Request to Firecrawl failed: {exc}. Moving to next source...",
             "ERROR",
         )
         return None
     except Exception as exc:
         log(
-            f"Terjadi error tidak terduga: {exc}. Lanjut ke sumber berikutnya...",
+            f"Unexpected error occurred: {exc}. Moving to next source...",
             "ERROR",
         )
         return None
@@ -271,7 +271,7 @@ def _parse_scrape_response(response: "requests.Response") -> "dict | None":
     try:
         return response.json()
     except ValueError:
-        log("Response Firecrawl bukan JSON yang valid.", "ERROR")
+        log("Firecrawl response is not valid JSON.", "ERROR")
         return None
 
 
@@ -288,7 +288,7 @@ def _target_status_failed(target_status) -> bool:
     try:
         return int(target_status) != 200
     except (TypeError, ValueError):
-        log(f"Status website tidak valid: {target_status}", "ERROR")
+        log(f"Invalid target website status: {target_status}", "ERROR")
         return False
 
 
@@ -312,7 +312,7 @@ def _extract_valid_title(metadata: dict, markdown: str) -> "str | None":
 
     if not scraped_title:
         log(
-            "Metadata title tidak ditemukan. Lanjut ke sumber berikutnya...",
+            "Title metadata not found. Moving to next source...",
             "ERROR",
         )
         return None
@@ -321,11 +321,11 @@ def _extract_valid_title(metadata: dict, markdown: str) -> "str | None":
     markdown_lower = markdown.lower()
 
     if any(keyword in title_lower for keyword in NOT_FOUND_KEYWORDS):
-        log("Halaman 404 terdeteksi dari judul.", "ERROR")
+        log("404 page detected from title.", "ERROR")
         return None
 
     if any(keyword in markdown_lower for keyword in NOT_FOUND_KEYWORDS):
-        log("Halaman 404 terdeteksi dari isi halaman.", "ERROR")
+        log("404 page detected from page content.", "ERROR")
         return None
 
     return html.unescape(scraped_title).strip()
@@ -363,7 +363,7 @@ def scrape_title(
         while True:
             # Throttle sebelum setiap request (termasuk retry & pindah source).
             rate_limiter.wait()
-            log(f"⏳ Meminta bantuan Firecrawl untuk menembus: {target_url}")
+            log(f"⏳ Asking Firecrawl to reach: {target_url}")
 
             response = _send_scrape_request(target_url, headers)
             if response is None:
@@ -374,8 +374,8 @@ def scrape_title(
             if response.status_code == 429:
                 if retry_count >= MAX_RETRIES:
                     log(
-                        f"HTTP 429 masih terjadi setelah {MAX_RETRIES} kali retry. "
-                        "Lanjut ke sumber berikutnya...",
+                        f"HTTP 429 still occurring after {MAX_RETRIES} retries. "
+                        "Moving to next source...",
                         "ERROR",
                     )
                     break
@@ -383,8 +383,8 @@ def scrape_title(
                 retry_count += 1
                 wait_time = _compute_retry_wait(response, retry_count)
                 log(
-                    f"Rate limit Firecrawl terkena. Retry {retry_count}/{MAX_RETRIES}. "
-                    f"Menunggu {wait_time:g} detik...",
+                    f"Hit Firecrawl rate limit. Retry {retry_count}/{MAX_RETRIES}. "
+                    f"Waiting {wait_time:g} seconds...",
                     "ERROR",
                 )
                 time.sleep(wait_time)
@@ -396,8 +396,8 @@ def scrape_title(
 
             if response.status_code != 200:
                 log(
-                    f"API Firecrawl gagal ({response.status_code}). "
-                    "Lanjut ke sumber berikutnya...",
+                    f"Firecrawl API failed ({response.status_code}). "
+                    "Moving to next source...",
                     "ERROR",
                 )
                 break
@@ -421,11 +421,11 @@ def scrape_title(
                 or metadata.get("status")
             )
             if target_status:
-                log(f"Status Website Target: {target_status}")
+                log(f"Target website status: {target_status}")
                 if _target_status_failed(target_status):
                     log(
-                        f"Website mengembalikan HTTP {target_status}. "
-                        "Lanjut ke sumber berikutnya...",
+                        f"Website returned HTTP {target_status}. "
+                        "Moving to next source...",
                         "ERROR",
                     )
                     break
@@ -434,10 +434,10 @@ def scrape_title(
             if decoded_title is None:
                 break
 
-            log(f"Judul ditemukan: {decoded_title}", "SUCCESS")
+            log(f"Title found: {decoded_title}", "SUCCESS")
             return decoded_title
 
-    log(f"Gagal menemukan judul untuk kode '{code}' dari semua sumber.", "ERROR")
+    log(f"Failed to find title for code '{code}' from all sources.", "ERROR")
     return ""
 
 
@@ -484,7 +484,7 @@ def open_database(database_file: Path) -> sqlite3.Connection:
         initialize_database(connection)
         return connection
     except sqlite3.Error as exc:
-        raise OSError(f"Gagal membuka database '{database_file}': {exc}") from exc
+        raise OSError(f"Failed to open database '{database_file}': {exc}") from exc
 
 
 def get_processed_codes(connection: sqlite3.Connection, codes: list[str]) -> set[str]:
@@ -555,7 +555,7 @@ def insert_result(
         connection.commit()
     except sqlite3.Error as exc:
         connection.rollback()
-        raise OSError(f"Gagal menyimpan '{nama_file}' ke SQLite: {exc}") from exc
+        raise OSError(f"Failed to save '{nama_file}' to SQLite: {exc}") from exc
 
 
 def get_database_count(connection: sqlite3.Connection) -> int:
@@ -587,23 +587,29 @@ def process_files(
 
     total = len(files)
     skipped_count = success_count = failed_count = 0
+    # Menyimpan nama file yang di-skip/gagal untuk ditampilkan di summary
+    # (lihat blok SUMMARY di bawah), terpisah dari counter di atas.
+    skipped_files: list[str] = []
+    failed_files: list[str] = []
 
     for index, file in enumerate(files, start=1):
         code = get_file_code(file)
 
         if code in already_processed:
-            log(f"[{index}/{total}] {code} sudah ada di SQLite. SKIP.")
+            log(f"[{index}/{total}] {code} - Skipped (already in SQLite).")
             skipped_count += 1
+            skipped_files.append(code)
             continue
 
-        log(f"===== [{index}/{total}] Memproses: {code} =====")
+        log(f"===== [{index}/{total}] Processing: {code} =====")
 
         try:
             file_metadata = get_file_metadata(file)
         except (OSError, PermissionError) as exc:
             failed_count += 1
+            failed_files.append(code)
             log(
-                f"Gagal membaca metadata filesystem '{file.name}': {exc}",
+                f"Failed to read filesystem metadata '{file.name}': {exc}",
                 "ERROR",
             )
             continue
@@ -611,7 +617,7 @@ def process_files(
         title = scrape_title(code, api_key, sources, rate_limiter)
 
         print()
-        log(f"nama file        : {code}")
+        log(f"file name        : {code}")
         log(f"title            : {title or '-'}")
         log(f"file created at  : {file_metadata['file_created_at']}")
         log(f"file modified at : {file_metadata['file_modified_at']}")
@@ -624,6 +630,7 @@ def process_files(
                 insert_result(connection, code, title, file_metadata)
             except OSError as exc:
                 failed_count += 1
+                failed_files.append(code)
                 log(str(exc), "ERROR")
                 continue
 
@@ -634,25 +641,35 @@ def process_files(
 
             success_count += 1
             log(
-                f"Checkpoint SQLite diperbarui. {get_database_count(connection)} "
-                "record tersimpan.",
+                f"SQLite checkpoint updated. {get_database_count(connection)} "
+                "records stored.",
                 "SUCCESS",
             )
         else:
             failed_count += 1
+            failed_files.append(code)
             log(
-                f"'{code}' tidak mendapatkan title. "
-                "Tidak dimasukkan ke SQLite.",
+                f"'{code}' did not get a title. Not inserted into SQLite.",
                 "ERROR",
             )
 
     print()
     log("SUMMARY")
-    log(f"Total file       : {total}")
-    log(f"Sudah diproses   : {skipped_count}")
-    log(f"Berhasil         : {success_count}")
-    log(f"Gagal            : {failed_count}")
-    log(f"Total checkpoint : {get_database_count(connection)}")
+    log(f"Total files      : {total}")
+    log(f"Skipped          : {skipped_count}")
+    log(f"Success          : {success_count}")
+    log(f"Failed           : {failed_count}")
+    log(f"Total records    : {get_database_count(connection)}")
+
+    if skipped_files:
+        log("Skipped files:")
+        for name in skipped_files:
+            log(f"    └── {name}")
+
+    if failed_files:
+        log("Failed files:")
+        for name in failed_files:
+            log(f"    └── {name}")
 
     return skipped_count, success_count, failed_count
 
@@ -663,16 +680,16 @@ def main() -> int:
     try:
         env_file = Path(__file__).resolve().parent / ".env"
         if not env_file.exists():
-            log(f"File .env tidak ditemukan: {env_file}", "ERROR")
+            log(f".env file not found: {env_file}", "ERROR")
             return 1
 
         load_dotenv(env_file)
-        log(f"Memuat environment dari: {env_file}")
+        log(f"Loading environment from: {env_file}")
 
         api_key = os.getenv("FIRECRAWL_API_KEY")
         if not api_key:
             log(
-                "Environment variable 'FIRECRAWL_API_KEY' tidak ditemukan!",
+                "Environment variable 'FIRECRAWL_API_KEY' not found!",
                 "ERROR",
             )
             return 1
@@ -684,8 +701,8 @@ def main() -> int:
         ]
         if not sources:
             log(
-                f"Environment variable '{SOURCES_ENV_VAR}' tidak ditemukan atau kosong. "
-                f"Isi dengan daftar source yang dipisahkan koma.",
+                f"Environment variable '{SOURCES_ENV_VAR}' not found or empty. "
+                f"Fill it with a comma-separated list of sources.",
                 "ERROR",
             )
             return 1
@@ -694,19 +711,19 @@ def main() -> int:
         files = get_files(args.directory, include_hidden=args.all)
 
         if not files:
-            log("Tidak ada file subtitle .vtt yang ditemukan di folder.", "ERROR")
+            log("No .vtt subtitle files found in the folder.", "ERROR")
             return 1
 
         if args.reverse:
             files.reverse()
 
-        log(f"Ditemukan {len(files)} file subtitle .vtt yang akan diperiksa.")
+        log(f"Found {len(files)} .vtt subtitle file(s) to check.")
 
         connection = open_database(args.db)
         try:
             database_count = get_database_count(connection)
-            log(f"SQLite checkpoint aktif: {args.db}")
-            log(f"Record yang sudah tersimpan: {database_count}")
+            log(f"Active SQLite checkpoint: {args.db}")
+            log(f"Records already stored: {database_count}")
 
             # PERBAIKAN BUG #3: satu batch query untuk seluruh file yang
             # sedang di-scan, dipakai ulang untuk log info di bawah ini
@@ -716,8 +733,8 @@ def main() -> int:
             already_processed = get_processed_codes(connection, codes_in_scan)
 
             existing_count = len(already_processed)
-            log(f"File target yang sudah ada di SQLite: {existing_count}")
-            log(f"File yang perlu diperiksa: {len(files) - existing_count}")
+            log(f"Target files already in SQLite: {existing_count}")
+            log(f"Files that need checking: {len(files) - existing_count}")
 
             rate_limiter = RateLimiter(MIN_SECONDS_PER_REQUEST)
             process_files(
@@ -729,15 +746,15 @@ def main() -> int:
             connection.close()
 
         log(
-            f"Semua proses selesai. Total {final_count} record tersimpan di {args.db}",
+            f"All processing finished. Total {final_count} record(s) stored in {args.db}",
             "SUCCESS",
         )
         return 0
 
     except KeyboardInterrupt:
         print()
-        log("Proses dibatalkan oleh pengguna.", "ERROR")
-        log("Record yang sudah di-commit ke SQLite tetap tersimpan.", "INFO")
+        log("Process cancelled by user.", "ERROR")
+        log("Records already committed to SQLite remain stored.", "INFO")
         return 130
 
     except (
