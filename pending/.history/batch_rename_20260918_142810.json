@@ -1,0 +1,117 @@
+{
+  "timestamp": "2026-09-18T14:28:10",
+  "command": {
+    "folder": "/home/skaska/Subtitle/pending",
+    "extension": "vtt",
+    "recursive": false,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/ROE-425",
+      "to": "/home/skaska/Subtitle/pending/ROE-425.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/MRSS-191",
+      "to": "/home/skaska/Subtitle/pending/MRSS-191.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/MDYD-992",
+      "to": "/home/skaska/Subtitle/pending/MDYD-992.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/HZGD-207",
+      "to": "/home/skaska/Subtitle/pending/HZGD-207.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/START-611",
+      "to": "/home/skaska/Subtitle/pending/START-611.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/ATID-686",
+      "to": "/home/skaska/Subtitle/pending/ATID-686.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/MXGS-1443",
+      "to": "/home/skaska/Subtitle/pending/MXGS-1443.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/KSBJ-442",
+      "to": "/home/skaska/Subtitle/pending/KSBJ-442.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/JUQ-724",
+      "to": "/home/skaska/Subtitle/pending/JUQ-724.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/MUDR-213",
+      "to": "/home/skaska/Subtitle/pending/MUDR-213.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/DLDSS-521",
+      "to": "/home/skaska/Subtitle/pending/DLDSS-521.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/FAN-206",
+      "to": "/home/skaska/Subtitle/pending/FAN-206.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/JUR-821",
+      "to": "/home/skaska/Subtitle/pending/JUR-821.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/JUR-820",
+      "to": "/home/skaska/Subtitle/pending/JUR-820.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 14,
+    "total_renamed": 14,
+    "total_skipped_has_ext": 0,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}
