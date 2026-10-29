@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-09-30T07:35:26",
+  "command": {
+    "folder": "/home/skaska/Subtitle/pending",
+    "extension": "vtt",
+    "recursive": false,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/JUR-548",
+      "to": "/home/skaska/Subtitle/pending/JUR-548.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/URE-119",
+      "to": "/home/skaska/Subtitle/pending/URE-119.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/REAL-916",
+      "to": "/home/skaska/Subtitle/pending/REAL-916.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/GVH-826",
+      "to": "/home/skaska/Subtitle/pending/GVH-826.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/NACT-062",
+      "to": "/home/skaska/Subtitle/pending/NACT-062.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/JUQ-032",
+      "to": "/home/skaska/Subtitle/pending/JUQ-032.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 6,
+    "total_renamed": 6,
+    "total_skipped_has_ext": 0,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}

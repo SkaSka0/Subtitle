@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-10-29T15:08:13",
+  "command": {
+    "folder": "/home/skaska/Subtitle/pending",
+    "extension": "vtt",
+    "recursive": false,
+    "duplicate_action": "skip",
+    "duplicate_folder": "_duplikat"
+  },
+  "actions": [
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/YST-278",
+      "to": "/home/skaska/Subtitle/pending/YST-278.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/DVAJ-754",
+      "to": "/home/skaska/Subtitle/pending/DVAJ-754.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/HODV-21726",
+      "to": "/home/skaska/Subtitle/pending/HODV-21726.vtt",
+      "status": "success",
+      "error": null
+    },
+    {
+      "type": "rename",
+      "from": "/home/skaska/Subtitle/pending/MTALL-103",
+      "to": "/home/skaska/Subtitle/pending/MTALL-103.vtt",
+      "status": "success",
+      "error": null
+    }
+  ],
+  "summary": {
+    "total_scanned": 4,
+    "total_renamed": 4,
+    "total_skipped_has_ext": 0,
+    "total_duplicate_processed": 0,
+    "total_duplicate_failed": 0
+  }
+}
