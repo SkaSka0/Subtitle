@@ -40,7 +40,6 @@ subtitle-metadata/
 ├── CONTRIBUTING.md
 ├── CHANGELOG.md
 ├── sqlite_database_cheatsheet.md
-├── results.json           # backup data lama, lokal
 ├── .env                   # lokal, jangan commit
 ├── subtitles.db           # database lokal
 └── .venv/                 # lokal, jangan commit
