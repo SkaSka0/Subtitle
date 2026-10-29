@@ -69,7 +69,9 @@ Spesifikasi target perilaku ada di `ARCHITECTURE.md` bagian 10.
 - [ ] Statistik scraping.
 - [ ] CLI reporting.
 - [ ] Database maintenance.
-- [x] Export record `downloaded = 0` dari SQLite ke JSON melalui `export_pending_subtitles.py`.
+- [x] Export record `downloaded = 0` dari SQLite ke JSON melalui
+      `export_db_to_json.py --downloaded 0` (menggantikan
+      `export_pending_subtitles.py`).
 - [x] README final.
 - [x] Dokumentasi penggunaan (dipecah menjadi README, ROADMAP, ARCHITECTURE, CONTRIBUTING, CHANGELOG).
 
@@ -77,7 +79,9 @@ Spesifikasi target perilaku ada di `ARCHITECTURE.md` bagian 10.
 
 - [ ] Manual re-scrape.
 - [ ] Update metadata ketika file berubah.
-- [ ] Export SQLite → JSON/CSV.
+- [x] Export SQLite → JSON (`export_db_to_json.py`, dengan filter
+      `--downloaded` dan sorting nama file/downloaded/waktu).
+- [ ] Export SQLite → CSV.
 - [ ] Search/query CLI.
 - [ ] Parallelism yang tetap aman terhadap rate limit.
 - [ ] Automated tests lebih lengkap.
@@ -180,6 +184,10 @@ Untuk P1 migrasi database, tambahan kriteria:
 ## 4. Current State Snapshot
 
 **Per 2026-09-12**
+
+> Catatan (2026-10-29): `export_pending_subtitles.py` pada snapshot ini telah
+> digantikan oleh `export_db_to_json.py` (lihat `CHANGELOG.md`). Baris
+> snapshot di bawah sengaja tidak diubah karena merupakan catatan historis.
 
 | Komponen | Status |
 |---|---|

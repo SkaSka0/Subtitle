@@ -1354,27 +1354,40 @@ Contoh umum:
 > Import langsung ke tabel existing harus dilakukan dengan sangat hati-hati.
 > Struktur CSV harus sesuai dengan schema target.
 
-## Export pending subtitle
+## Export ke JSON (termasuk pending subtitle)
 
 Workflow project memiliki utility khusus:
 
 ```text
-export_pending_subtitles.py
+export_db_to_json.py
 ```
 
-Utility tersebut digunakan untuk mengekspor record SQLite dengan:
+Utility ini mengekspor record SQLite ke JSON tanpa mengubah data SQLite
+(database dibuka read-only). Untuk mengekspor hanya record dengan:
 
 ```sql
 downloaded = 0
 ```
 
-ke JSON tanpa mengubah data SQLite.
+gunakan:
+
+```bash
+python export_db_to_json.py --downloaded 0 --output pending_subtitles.json
+```
+
+Flag filter dan sorting yang tersedia: `--downloaded {0,1,all}`,
+`--sort-name`, `--sort-downloaded`, `--sort-time` (masing-masing
+`asc`/`desc`), dan `--time-field {created,modified,accessed,scraped}`.
+Sorting waktu memakai pola `substr()` dari bagian 10 sehingga kronologis.
 
 Gunakan `--help` untuk melihat sintaks CLI yang tersedia pada versi script lokal:
 
 ```bash
-python export_pending_subtitles.py --help
+python export_db_to_json.py --help
 ```
+
+> `export_pending_subtitles.py` (utility lama) telah digantikan oleh
+> `export_db_to_json.py`.
 
 ---
 

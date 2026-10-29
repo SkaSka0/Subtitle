@@ -30,7 +30,7 @@ subtitle-metadata/
 ├── subtitle_metadata.py
 ├── batch_add_extension.py
 ├── migrate_json_to_sqlite.py
-├── export_pending_subtitles.py
+├── export_db_to_json.py
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
@@ -52,8 +52,9 @@ subtitle-metadata/
   yang belum memiliki ekstensi.
 - `migrate_json_to_sqlite.py` — migrasi satu kali dari checkpoint JSON lama
   (`results.json`) ke SQLite (`subtitles.db`).
-- `export_pending_subtitles.py` — mengekspor record SQLite dengan
-  `downloaded = 0` ke JSON tanpa mengubah data SQLite.
+- `export_db_to_json.py` — mengekspor record SQLite ke JSON (read-only)
+  dengan filter `downloaded` (`0`/`1`/`all`) dan sorting nama file,
+  downloaded, atau waktu. Menggantikan `export_pending_subtitles.py`.
 
 ---
 
@@ -161,14 +162,36 @@ Hanya dijalankan sekali untuk memindahkan checkpoint lama ke SQLite. Migrator
 menolak berjalan jika database target sudah berisi data, untuk mencegah
 duplikat.
 
-### `export_pending_subtitles.py` — ekspor subtitle pending
+### `export_db_to_json.py` — ekspor SQLite ke JSON
+
+Ekspor subtitle pending (pengganti `export_pending_subtitles.py`):
 
 ```bash
-python export_pending_subtitles.py --db subtitles.db --output pending_subtitles.json
+python export_db_to_json.py --db subtitles.db --output pending_subtitles.json --downloaded 0
 ```
 
-Mengekspor seluruh record dengan `downloaded = 0` ke JSON tanpa mengubah data
-di SQLite.
+Contoh lain:
+
+```bash
+python export_db_to_json.py                                  # semua, waktu asc
+python export_db_to_json.py --sort-name desc
+python export_db_to_json.py --sort-downloaded asc --sort-name desc
+python export_db_to_json.py --sort-time desc --time-field scraped
+```
+
+Opsi:
+- `-d` / `--db` — file SQLite (default `subtitles.db`).
+- `-o` / `--output` — file JSON output (default `subtitles_export.json`).
+- `--downloaded {0,1,all}` — filter status downloaded (default `all`).
+- `--sort-name {asc,desc}` — urut nama file, case-insensitive.
+- `--sort-downloaded {asc,desc}` — `asc` = belum downloaded dulu.
+- `--sort-time {asc,desc}` — urut waktu; `asc` = terlama dulu.
+- `--time-field {created,modified,accessed,scraped}` — kolom waktu untuk
+  `--sort-time` (default `created`).
+
+Jika beberapa flag sort dipakai, prioritas mengikuti urutan penulisan di
+command line. Tanpa flag sort, default-nya waktu asc (oldest → newest).
+Database dibuka read-only sehingga data SQLite tidak berubah.
 
 ### `batch_add_extension.py` — tambah ekstensi file
 

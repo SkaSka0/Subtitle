@@ -315,7 +315,8 @@ akan mengurutkan berdasarkan karakter pertama (hari), bukan secara
 kronologis. Query yang butuh urutan kronologis harus menyusun ulang
 komponennya ke format `YYYY-MM-DD HH:MM:SS` terlebih dahulu memakai
 `substr()` (lihat `sqlite_database_cheatsheet.md` bagian 10 dan
-`export_pending_subtitles.py`), bukan mengurutkan string apa adanya.
+`export_pending_subtitles.py`, kini digantikan `export_db_to_json.py`),
+bukan mengurutkan string apa adanya.
 
 ---
 

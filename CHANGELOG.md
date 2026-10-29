@@ -7,6 +7,49 @@
 
 ---
 
+## 2026-10-29 — export_db_to_json.py menggantikan export_pending_subtitles.py
+
+Ditambahkan **`export_db_to_json.py`**, utility umum untuk mengekspor tabel
+`subtitles` dari SQLite ke JSON. Utility ini mencakup seluruh fungsi
+`export_pending_subtitles.py` sehingga skrip lama tidak lagi diperlukan dan
+dihapus dari repo.
+
+Fitur:
+- `--downloaded {0,1,all}` — filter status downloaded (default `all`).
+  `--downloaded 0` setara dengan perilaku `export_pending_subtitles.py`.
+  Nilai filter dikirim sebagai parameter SQL, bukan disisipkan ke string query.
+- `--sort-name`, `--sort-downloaded`, `--sort-time` (masing-masing `asc`/`desc`).
+  Jika beberapa flag dipakai, prioritas mengikuti urutan penulisan di
+  command line. Tanpa flag sort, default-nya waktu asc (oldest → newest),
+  sama dengan perilaku skrip lama.
+- `--time-field {created,modified,accessed,scraped}` — kolom waktu untuk
+  `--sort-time` (default `created`).
+- Sorting waktu memakai pola `substr()` ke `YYYY-MM-DD HH:MM:SS` (lihat
+  `ARCHITECTURE.md` bagian 8), nilai kosong/NULL selalu di akhir, dengan
+  tie-breaker `relative_path`, `nama_file`, `id`.
+- Database dibuka read-only (`mode=ro`); JSON ditulis atomic lewat file `.tmp`.
+
+Perbedaan dengan skrip lama:
+- Default output `subtitles_export.json` (skrip lama: `pending_subtitles.json`).
+  Padanan perintah lama:
+  `python export_db_to_json.py --db X --output pending_subtitles.json --downloaded 0`.
+- Nama file dalam sorting nama bersifat case-insensitive.
+
+Verifikasi: `python3 -m py_compile` lolos; diuji dengan data buatan pada
+semua kombinasi flag sort dan filter, termasuk tanggal rawan salah urut
+(15-12-2025 vs 01-01-2026), nilai waktu NULL, dan nilai `--downloaded` tidak
+valid (ditolak argparse). Hasil `--downloaded 0` dengan sort default
+dibandingkan dengan query `export_pending_subtitles.py` pada data uji dan
+identik.
+
+Dokumentasi yang diperbarui: `README.md`, `ROADMAP.md` (checklist P4/P5 dan
+catatan pada snapshot), `ARCHITECTURE.md` (referensi pada catatan sorting),
+`sqlite_database_cheatsheet.md` bagian 25. Entri changelog lama yang menyebut
+`export_pending_subtitles.py` sengaja tidak diubah karena merupakan riwayat.
+
+Tidak ada perubahan pada schema, CLI `subtitle_metadata.py`, daftar source,
+retry/rate limiting Firecrawl, maupun data di `subtitles.db`.
+
 ## 2026-09-13 (lanjutan) — Aturan baru di CONTRIBUTING.md
 
 Ditambahkan section baru **"Prinsip Desain & Pemeliharaan Kode"** di
